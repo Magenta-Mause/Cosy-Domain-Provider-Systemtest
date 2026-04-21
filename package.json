@@ -1,0 +1,27 @@
+{
+  "name": "cosy-domain-provider-systemtest",
+  "version": "1.0.0",
+  "description": "Systemtests für den Cosy Domain Provider",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "report": "playwright show-report"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Magenta-Mause/Cosy-Domain-Provider-Systemtest.git"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Magenta-Mause/Cosy-Domain-Provider-Systemtest/issues"
+  },
+  "homepage": "https://github.com/Magenta-Mause/Cosy-Domain-Provider-Systemtest#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3"
+  }
+}
