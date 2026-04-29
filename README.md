@@ -5,7 +5,8 @@ Playwright-based system tests for the Cosy Domain Provider frontend.
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) v18 or higher
-- The frontend running at `http://localhost:5173` (or set `BASE_URL` env var to point elsewhere)
+- [Backend](https://github.com/Magenta-Mause/Cosy-Domain-Provider-Backend) running at `http://localhost:8080`
+- [Frontend](https://github.com/Magenta-Mause/Cosy-Domain-Provider-Frontend) running at `http://localhost:5173` (or set `BASE_URL` env var to point elsewhere)
 
 ## Setup
 
@@ -59,3 +60,12 @@ tests/
 ├── pages/      # Page Object Models
 └── specs/      # Test specs (one file per feature area)
 ```
+
+---
+
+## Related repositories
+
+| Repository | Description |
+|---|---|
+| [Cosy-Domain-Provider-Backend](https://github.com/Magenta-Mause/Cosy-Domain-Provider-Backend) | Spring Boot backend |
+| [Cosy-Domain-Provider-Frontend](https://github.com/Magenta-Mause/Cosy-Domain-Provider-Frontend) | React + Vite frontend |
