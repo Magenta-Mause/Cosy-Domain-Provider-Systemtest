@@ -3,10 +3,28 @@ import type { Page } from '@playwright/test';
 export class LoginPage {
   constructor(private readonly page: Page) {}
 
-  get usernameInput() {
-    return this.page.getByTestId('login-username-input');
+  // Step 1 — E-Mail-Eingabe
+  get emailInput() {
+    return this.page.getByTestId('login-email-input');
   }
 
+  get emailContinueBtn() {
+    return this.page.getByTestId('login-email-continue-btn');
+  }
+
+  get oauthGoogleBtn() {
+    return this.page.getByTestId('login-oauth-google-btn');
+  }
+
+  get oauthGithubBtn() {
+    return this.page.getByTestId('login-oauth-github-btn');
+  }
+
+  get oauthDiscordBtn() {
+    return this.page.getByTestId('login-oauth-discord-btn');
+  }
+
+  // Step 2 — Passwort-Eingabe
   get passwordInput() {
     return this.page.getByTestId('login-password-input');
   }
@@ -15,20 +33,31 @@ export class LoginPage {
     return this.page.getByTestId('login-submit-btn');
   }
 
-  get registerLink() {
-    return this.page.getByTestId('login-register-link').first();
-  }
-
   get togglePasswordBtn() {
     return this.page.getByTestId('login-toggle-password-btn');
+  }
+
+  get forgotPasswordLink() {
+    return this.page.getByTestId('login-forgot-password-link');
+  }
+
+  get backBtn() {
+    return this.page.getByTestId('login-back-btn');
+  }
+
+  // Shared
+  get registerLink() {
+    return this.page.getByTestId('login-register-link-footer');
   }
 
   async navigate() {
     await this.page.goto('/login');
   }
 
-  async login(username: string, password: string) {
-    await this.usernameInput.fill(username);
+  async login(email: string, password: string) {
+    await this.emailInput.fill(email);
+    await this.emailContinueBtn.click();
+    await this.passwordInput.waitFor({ state: 'visible' });
     await this.passwordInput.fill(password);
     await this.submitBtn.click();
     await this.page.waitForURL((url) => !url.pathname.includes('/login'));

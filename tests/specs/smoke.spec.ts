@@ -10,18 +10,18 @@ test.describe('Smoke Tests', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
-  test('Login-Seite lädt und zeigt Formular', async ({ page }) => {
+  test('Login-Seite lädt und zeigt E-Mail-Formular', async ({ page }) => {
     const login = new LoginPage(page);
     await login.navigate();
-    await expect(login.submitBtn).toBeVisible();
-    await expect(login.usernameInput).toBeVisible();
+    await expect(login.emailInput).toBeVisible();
+    await expect(login.emailContinueBtn).toBeVisible();
   });
 
-  test('Registrierungsseite lädt und zeigt Formular', async ({ page }) => {
+  test('Registrierungsseite lädt und zeigt E-Mail-Formular', async ({ page }) => {
     const register = new RegisterPage(page);
     await register.navigate();
-    await expect(register.submitBtn).toBeVisible();
-    await expect(register.usernameInput).toBeVisible();
+    await expect(register.emailInput).toBeVisible();
+    await expect(register.emailContinueBtn).toBeVisible();
   });
 
   test('Nicht eingeloggte Nutzer werden von /dashboard zu /login weitergeleitet', async ({

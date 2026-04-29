@@ -66,5 +66,9 @@ tests/
 | `/login` | `LoginPage` |
 | `/register` | `RegisterPage` |
 | `/verify` | `VerifyPage` |
+| `/forgot-password` | `ForgotPasswordPage` |
 | `/dashboard` | `DashboardPage` |
 | `/domain/:id` | `DomainDetailPage` |
+
+> **Hinweis:** Login und Register sind zweistufig (E-Mail → Passwort/Details).
+> Das Register-Formular (Schritt 2) verwendet **Cloudflare Turnstile** — der Submit-Button bleibt in headless Playwright deaktiviert bis das CAPTCHA-Token vorliegt. End-to-End-Tests für den vollen Registrierungsflow benötigen entweder headed Mode oder einen Turnstile-Bypass.
