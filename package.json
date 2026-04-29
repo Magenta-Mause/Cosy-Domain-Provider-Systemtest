@@ -4,6 +4,7 @@
   "description": "Systemtests für den Cosy Domain Provider",
   "scripts": {
     "test": "playwright test",
+    "test:staging": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net playwright test",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/node": "^25.6.0",
+    "dotenv-cli": "^11.0.0",
     "typescript": "^6.0.3"
   }
 }

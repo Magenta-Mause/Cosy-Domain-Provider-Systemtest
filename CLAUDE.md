@@ -5,14 +5,37 @@ Playwright end-to-end tests for the `cosy-domain-provider-frontend` (React SPA a
 ## Commands
 
 ```bash
-npm test              # Run all tests headless (Chromium)
-npm run test:headed   # Run with visible browser
-npm run test:ui       # Interactive Playwright UI (watch mode)
-npm run test:debug    # Step-through debugger
-npm run report        # Open last HTML report
+npm test                # Run all tests headless (Chromium)
+npm run test:staging    # Run against staging environment
+npm run test:headed     # Run with visible browser
+npm run test:ui         # Interactive Playwright UI (watch mode)
+npm run test:debug      # Step-through debugger
+npm run report          # Open last HTML report
 ```
 
-Set `BASE_URL` env var to test against a deployed environment instead of localhost.
+### Gegen Staging testen
+
+`test:staging` setzt `BASE_URL` automatisch. Credentials kommen aus `.env.local`:
+
+```bash
+# .env.local (einmalig anlegen, wird nie committet)
+STAGING_AUTH_USERNAME=deinuser
+STAGING_AUTH_PASSWORD=deinpasswort
+```
+
+```bash
+npm run test:staging
+```
+
+In CI die Credentials als Secrets setzen — `.env.local` wird ignoriert wenn die Vars bereits in der Umgebung gesetzt sind.
+
+| Env var | Zweck | Default |
+|---------|-------|---------|
+| `BASE_URL` | Ziel-URL | `http://localhost:5173` |
+| `TEST_USERNAME` | App-Login Benutzername | `testuser` |
+| `TEST_PASSWORD` | App-Login Passwort | `testpass` |
+| `STAGING_AUTH_USERNAME` | Staging-Barrier Benutzername | — (kein Staging-Auth) |
+| `STAGING_AUTH_PASSWORD` | Staging-Barrier Passwort | — (kein Staging-Auth) |
 
 ## Project structure
 

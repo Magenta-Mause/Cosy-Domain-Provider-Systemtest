@@ -4,6 +4,7 @@ const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173';
 
 export default defineConfig({
   testDir: './tests/specs',
+  globalSetup: require.resolve('./tests/global-setup'),
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -14,7 +15,8 @@ export default defineConfig({
 
   use: {
     baseURL: BASE_URL,
-    trace: 'on-first-retry',
+    storageState: '.auth/state.json',
+    trace: 'on',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
     locale: 'de-DE',

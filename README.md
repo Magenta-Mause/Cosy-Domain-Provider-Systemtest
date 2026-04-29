@@ -21,7 +21,8 @@ npx playwright install --with-deps chromium
 
 | Command | Description |
 |---|---|
-| `npm test` | Run all tests headless |
+| `npm test` | Run all tests headless (localhost) |
+| `npm run test:staging` | Run all tests against the staging environment |
 | `npm run test:headed` | Run with visible browser window |
 | `npm run test:ui` | Open Playwright UI mode (interactive, with watch) |
 | `npm run test:debug` | Step through tests in debug mode |
@@ -30,14 +31,24 @@ npx playwright install --with-deps chromium
 Run a single spec file:
 
 ```bash
-npx playwright test tests/specs/counter.spec.ts
+npx playwright test tests/specs/smoke.spec.ts
 ```
 
-Run against a different environment:
+### Staging
+
+`test:staging` sets `BASE_URL` automatically. Credentials are loaded from `.env.local`:
 
 ```bash
-BASE_URL=https://staging.example.com npm test
+# .env.local  (gitignored — create once, never commit)
+STAGING_AUTH_USERNAME=youruser
+STAGING_AUTH_PASSWORD=yourpassword
 ```
+
+```bash
+npm run test:staging
+```
+
+In CI, set `STAGING_AUTH_USERNAME` and `STAGING_AUTH_PASSWORD` as repository secrets and pass them as environment variables — `.env.local` is skipped when the variables are already present in the environment.
 
 ## Project Structure
 
