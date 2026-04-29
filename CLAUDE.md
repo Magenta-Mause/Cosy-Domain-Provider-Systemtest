@@ -36,13 +36,17 @@ In CI die Credentials als Secrets setzen — `.env.local` wird ignoriert wenn di
 | `TEST_PASSWORD` | App-Login Passwort | `testpass` |
 | `STAGING_AUTH_USERNAME` | Staging-Barrier Benutzername | — (kein Staging-Auth) |
 | `STAGING_AUTH_PASSWORD` | Staging-Barrier Passwort | — (kein Staging-Auth) |
+| `MAIL_SERVICE_API_KEY` | Bearer-Token für die Mail-Testbox-API | — (Mail-Tests übersprungen) |
 
 ## Project structure
 
 ```
+docs/
+  mail-service.md        # Mail Service API reference (ohne Secrets)
 tests/
   fixtures/index.ts      # Custom test + expect — always import from here
-  helpers/index.ts       # Shared utilities (generateSubdomain, waitForApiIdle)
+  helpers/index.ts       # Shared utilities (generateSubdomain, generateTestEmail, waitForApiIdle)
+  helpers/mail-service.ts# MailService class — wartet auf Mails, extrahiert Tokens
   pages/                 # Page Object Models, one file per route
   specs/                 # Test files
 ```
@@ -61,5 +65,6 @@ tests/
 | `/` | `HomePage` |
 | `/login` | `LoginPage` |
 | `/register` | `RegisterPage` |
+| `/verify` | `VerifyPage` |
 | `/dashboard` | `DashboardPage` |
 | `/domain/:id` | `DomainDetailPage` |

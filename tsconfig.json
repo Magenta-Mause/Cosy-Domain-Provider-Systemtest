@@ -11,7 +11,9 @@
     "baseUrl": ".",
     "paths": {
       "@pages/*": ["tests/pages/*"],
-      "@fixtures/*": ["tests/fixtures/*"]
+      "@fixtures/*": ["tests/fixtures/*"],
+      "@helpers/*": ["tests/helpers/*"],
+      "@helpers/index": ["tests/helpers/index.ts"]
     }
   },
   "include": ["tests/**/*.ts", "playwright.config.ts"]
