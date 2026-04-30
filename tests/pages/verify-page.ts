@@ -11,6 +11,10 @@ export class VerifyPage {
     return this.page.getByTestId('verify-submit-btn');
   }
 
+  get sendVerificationEmailBtn() {
+    return this.page.getByRole('button', { name: /send verification email/i });
+  }
+
   get successMessage() {
     return this.page.getByTestId('verify-success-message');
   }
@@ -22,5 +26,10 @@ export class VerifyPage {
   async verifyWithCode(code: string) {
     await this.codeInput.fill(code);
     // Filling 6 chars triggers auto-submit; no manual click needed
+  }
+
+  async requestVerificationEmail() {
+    await this.sendVerificationEmailBtn.click();
+    await this.codeInput.waitFor();
   }
 }

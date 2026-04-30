@@ -6,7 +6,8 @@ Playwright end-to-end tests for the `cosy-domain-provider-frontend` (React SPA a
 
 ```bash
 npm test                # Run all tests headless (Chromium)
-npm run test:staging    # Run against staging environment
+npm run test:staging    # Run default staging suite with one worker
+npm run test:staging:mail # Run staging with opt-in mail-flow tests
 npm run test:headed     # Run with visible browser
 npm run test:ui         # Interactive Playwright UI (watch mode)
 npm run test:debug      # Step-through debugger
@@ -32,11 +33,14 @@ In CI die Credentials als Secrets setzen — `.env.local` wird ignoriert wenn di
 | Env var | Zweck | Default |
 |---------|-------|---------|
 | `BASE_URL` | Ziel-URL | `http://localhost:5173` |
-| `TEST_USERNAME` | App-Login Benutzername | `testuser` |
-| `TEST_PASSWORD` | App-Login Passwort | `testpass` |
 | `STAGING_AUTH_USERNAME` | Staging-Barrier Benutzername | — (kein Staging-Auth) |
 | `STAGING_AUTH_PASSWORD` | Staging-Barrier Passwort | — (kein Staging-Auth) |
 | `MAIL_SERVICE_API_KEY` | Bearer-Token für die Mail-Testbox-API | — (Mail-Tests übersprungen) |
+| `TEST_MAIL_DOMAIN` | Domain für generierte App-Testuser-Mails | `example.org` |
+| `TEST_USER_SETUP_MAIL_TIMEOUT_MS` | Timeout für Setup-Verifizierungsmail | `45000` |
+| `RUN_MAIL_FLOW_TESTS` | Zusätzliche Mail-Flow-Specs ausführen | — |
+| `HEADED_SETUP` | Global-Setup-Browser sichtbar starten | — |
+| `SLOW_MO_MS` | Slow motion für Global-Setup-Browser | — |
 
 ## Project structure
 
@@ -57,7 +61,8 @@ tests/
 - **All selectors go in page objects**, never inline in specs. Use `page.getByTestId(...)`.
 - **`data-testid` attributes are owned by the frontend.** If one is missing, add it in `cosy-domain-provider-frontend` first, then reference it here.
 - **Test descriptions in German** — matches `locale: 'de-DE'` in the Playwright config.
-- **Auth in tests:** use the `authenticatedPage` fixture for tests that require a logged-in user. Set credentials via `TEST_USERNAME` / `TEST_PASSWORD` env vars (defaults: `testuser` / `testpass`).
+- **Auth in tests:** use the `authenticatedPage` fixture for tests that require a logged-in user. The app test user is created in `global-setup` via API, verified through the test mailbox, secured with MFA, and stored in `.auth/test-user.json`; the authenticated browser state after password + MFA login is stored in `.auth/app-user-state.json`. `STAGING_AUTH_USERNAME` / `STAGING_AUTH_PASSWORD` are only for the Staging barrier, not for app login.
+- **Mail-heavy specs:** the default staging run only sends the setup verification mail. Specs that exercise additional verification/reset mails require `RUN_MAIL_FLOW_TESTS=1` or `npm run test:staging:mail`.
 - **One page object per route:**
 
 | Route | Page Object |

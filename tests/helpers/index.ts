@@ -1,12 +1,20 @@
 import type { BrowserContext, Page } from '@playwright/test';
 
 export { MailService } from './mail-service';
+export { generateTotpCode } from './totp';
+export {
+  requireRuntimeTestUser,
+  readRuntimeTestUserState,
+  APP_USER_STATE_PATH,
+  TEST_USER_STATE_PATH,
+} from './runtime-test-user';
+export type { RuntimeTestUser, RuntimeTestUserState } from './runtime-test-user';
 
 export function generateSubdomain(): string {
   return `test-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function generateTestEmail(domain = 'test.example.de'): string {
+export function generateTestEmail(domain = 'example.org'): string {
   return `playwright-${Date.now()}@${domain}`;
 }
 

@@ -2,6 +2,8 @@ export { LoginPage } from './login-page';
 export { RegisterPage } from './register-page';
 export { VerifyPage } from './verify-page';
 export { ForgotPasswordPage } from './forgot-password-page';
+export { ResetPasswordPage } from './reset-password-page';
+export { TwoFactorSetupPage } from './two-factor-setup-page';
 export { HomePage } from './home-page';
 export { DashboardPage } from './dashboard-page';
 export { DomainDetailPage } from './domain-detail-page';

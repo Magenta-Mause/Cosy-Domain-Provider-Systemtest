@@ -60,7 +60,14 @@ export class MailService {
           m.subject.includes(subjectContains) &&
           new Date(m.sentAt) > after,
       );
-      if (found) return found;
+      if (found) {
+        if (!found.success) {
+          throw new Error(
+            `Mail an "${recipient}" mit Betreff "${found.subject}" wurde laut Mail-API nicht erfolgreich zugestellt: ${found.errorMessage ?? 'keine Fehlermeldung'}`,
+          );
+        }
+        return found;
+      }
       await new Promise((r) => setTimeout(r, pollIntervalMs));
     }
 

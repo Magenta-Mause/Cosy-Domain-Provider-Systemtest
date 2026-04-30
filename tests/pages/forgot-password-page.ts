@@ -15,6 +15,10 @@ export class ForgotPasswordPage {
     return this.page.getByTestId('forgot-password-back-link');
   }
 
+  get successMessage() {
+    return this.page.getByText(/you'll receive a reset link shortly/i);
+  }
+
   async navigate() {
     await this.page.goto('/forgot-password');
   }

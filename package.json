@@ -4,7 +4,8 @@
   "description": "Systemtests für den Cosy Domain Provider",
   "scripts": {
     "test": "playwright test",
-    "test:staging": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net playwright test",
+    "test:staging": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net playwright test --workers=1",
+    "test:staging:mail": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net RUN_MAIL_FLOW_TESTS=1 playwright test --workers=1",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",

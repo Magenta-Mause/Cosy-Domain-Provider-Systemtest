@@ -23,7 +23,8 @@ npx playwright install --with-deps chromium
 | Command | Description |
 |---|---|
 | `npm test` | Run all tests headless (localhost) |
-| `npm run test:staging` | Run all tests against the staging environment |
+| `npm run test:staging` | Run the default staging suite with one worker |
+| `npm run test:staging:mail` | Run staging with opt-in mail-flow tests enabled |
 | `npm run test:headed` | Run with visible browser window |
 | `npm run test:ui` | Open Playwright UI mode (interactive, with watch) |
 | `npm run test:debug` | Step through tests in debug mode |
@@ -43,13 +44,24 @@ npx playwright test tests/specs/smoke.spec.ts
 # .env.local  (gitignored — create once, never commit)
 STAGING_AUTH_USERNAME=youruser
 STAGING_AUTH_PASSWORD=yourpassword
+MAIL_SERVICE_API_KEY=mailbox-api-token
 ```
 
 ```bash
 npm run test:staging
 ```
 
-In CI, set `STAGING_AUTH_USERNAME` and `STAGING_AUTH_PASSWORD` as repository secrets and pass them as environment variables — `.env.local` is skipped when the variables are already present in the environment.
+In CI, set `STAGING_AUTH_USERNAME`, `STAGING_AUTH_PASSWORD`, and `MAIL_SERVICE_API_KEY` as repository secrets and pass them as environment variables — `.env.local` is skipped when the variables are already present in the environment.
+
+The Staging credentials are only used for the Staging barrier. The app test user is created during Playwright global setup via `/api/v1/auth/register`, verified through the test mailbox, secured with MFA, and written to `.auth/test-user.json` for fixtures that require an authenticated app user. The authenticated browser state after password + MFA login is stored in `.auth/app-user-state.json`.
+
+By default, staging only sends the setup verification mail. Additional mail-heavy specs are skipped unless `RUN_MAIL_FLOW_TESTS=1` is set, or `npm run test:staging:mail` is used.
+
+To watch the global setup verification browser:
+
+```bash
+HEADED_SETUP=1 SLOW_MO_MS=500 npm run test:staging -- tests/specs/authenticated-setup.spec.ts --headed
+```
 
 ## Project Structure
 

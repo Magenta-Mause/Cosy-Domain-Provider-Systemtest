@@ -41,6 +41,14 @@ export class LoginPage {
     return this.page.getByTestId('login-forgot-password-link');
   }
 
+  get mfaTotpInput() {
+    return this.page.getByTestId('login-totp-input');
+  }
+
+  get mfaBackBtn() {
+    return this.page.getByTestId('login-mfa-back-btn');
+  }
+
   get backBtn() {
     return this.page.getByTestId('login-back-btn');
   }
@@ -60,6 +68,11 @@ export class LoginPage {
     await this.passwordInput.waitFor({ state: 'visible' });
     await this.passwordInput.fill(password);
     await this.submitBtn.click();
+    await this.page.waitForURL((url) => !url.pathname.includes('/login'));
+  }
+
+  async completeMfa(code: string) {
+    await this.mfaTotpInput.fill(code);
     await this.page.waitForURL((url) => !url.pathname.includes('/login'));
   }
 }

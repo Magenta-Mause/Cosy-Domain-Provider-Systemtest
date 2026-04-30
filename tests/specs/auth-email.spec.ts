@@ -4,6 +4,11 @@ import { MailService, generateTestEmail, enableCaptchaBypass } from '@helpers/in
 
 test.describe('E-Mail-Verifizierungs-Flow', () => {
   test.skip(
+    process.env.RUN_MAIL_FLOW_TESTS !== '1',
+    'Mail-Flow-Tests laufen nur mit RUN_MAIL_FLOW_TESTS=1, damit der Default-Staging-Run nur den Setup-User per Mail registriert.',
+  );
+
+  test.skip(
     !process.env.MAIL_SERVICE_API_KEY,
     'MAIL_SERVICE_API_KEY nicht gesetzt — Mail-Tests übersprungen',
   );
@@ -14,7 +19,7 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
   ) {
     const baseUrl = process.env.BASE_URL ?? 'http://localhost:5173';
     await enableCaptchaBypass(page.context());
-    const res = await page.request.post(`${baseUrl}/api/v1/auth/register?tokenMode=DIRECT`, {
+    const res = await page.request.post(`${baseUrl}/api/v1/auth/register?tokenMode=COOKIE`, {
       data: { ...opts, captchaToken: 'BYPASS' },
     });
     expect(res.status()).toBe(201);
@@ -67,10 +72,19 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
       timeoutMs: 30_000,
     });
 
-    const token = mail.extractVerifyToken(verifyMail);
+    expect(mail.extractVerifyToken(verifyMail)).toMatch(/^[A-Z0-9]{6}$/);
 
     const verify = new VerifyPage(page);
     await page.goto('/verify');
+    const resendStartedAt = new Date();
+    await verify.requestVerificationEmail();
+    const resendMail = await mail.waitForMail({
+      recipient: email,
+      subjectContains: 'Verify Your Account',
+      after: resendStartedAt,
+      timeoutMs: 30_000,
+    });
+    const token = mail.extractVerifyToken(resendMail);
     await verify.verifyWithCode(token);
     await expect(verify.successMessage).toBeVisible();
   });
