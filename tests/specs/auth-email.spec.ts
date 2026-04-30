@@ -28,7 +28,7 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
 
     await registerViaApi(page, {
       email,
-      username: `playwright-${Date.now()}`,
+      username: `pw${Date.now().toString(36)}`,
       password: 'Test1234!',
     });
 
@@ -55,7 +55,7 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
 
     await registerViaApi(page, {
       email,
-      username: `playwright-${Date.now()}`,
+      username: `pw${Date.now().toString(36)}`,
       password: 'Test1234!',
     });
 
