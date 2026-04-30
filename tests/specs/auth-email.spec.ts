@@ -1,7 +1,6 @@
 import { test, expect } from '../fixtures';
-import { RegisterPage } from '@pages/register-page';
 import { VerifyPage } from '@pages/verify-page';
-import { MailService, generateTestEmail } from '@helpers/index';
+import { MailService, generateTestEmail, enableCaptchaBypass } from '@helpers/index';
 
 test.describe('E-Mail-Verifizierungs-Flow', () => {
   test.skip(
@@ -9,19 +8,28 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
     'MAIL_SERVICE_API_KEY nicht gesetzt — Mail-Tests übersprungen',
   );
 
+  async function registerViaApi(
+    page: import('@playwright/test').Page,
+    opts: { email: string; username: string; password: string },
+  ) {
+    const baseUrl = process.env.BASE_URL ?? 'http://localhost:5173';
+    await enableCaptchaBypass(page.context());
+    const res = await page.request.post(`${baseUrl}/api/v1/auth/register?tokenMode=DIRECT`, {
+      data: { ...opts, captchaToken: 'BYPASS' },
+    });
+    expect(res.status()).toBe(201);
+  }
+
   test('Registrierung löst Verifizierungsmail aus, Token-Link verifiziert den Account', async ({
     page,
   }) => {
     const email = generateTestEmail();
-    const password = 'Test1234!';
     const startedAt = new Date();
 
-    const register = new RegisterPage(page);
-    await register.navigate();
-    await register.register({
-      username: `playwright-${Date.now()}`,
+    await registerViaApi(page, {
       email,
-      password,
+      username: `playwright-${Date.now()}`,
+      password: 'Test1234!',
     });
 
     const mail = new MailService();
@@ -36,7 +44,6 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
 
     const verify = new VerifyPage(page);
     await verify.navigateWithToken(token);
-
     await expect(verify.successMessage).toBeVisible();
   });
 
@@ -44,15 +51,12 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
     page,
   }) => {
     const email = generateTestEmail();
-    const password = 'Test1234!';
     const startedAt = new Date();
 
-    const register = new RegisterPage(page);
-    await register.navigate();
-    await register.register({
-      username: `playwright-${Date.now()}`,
+    await registerViaApi(page, {
       email,
-      password,
+      username: `playwright-${Date.now()}`,
+      password: 'Test1234!',
     });
 
     const mail = new MailService();
@@ -68,7 +72,6 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
     const verify = new VerifyPage(page);
     await page.goto('/verify');
     await verify.verifyWithCode(token);
-
     await expect(verify.successMessage).toBeVisible();
   });
 });
