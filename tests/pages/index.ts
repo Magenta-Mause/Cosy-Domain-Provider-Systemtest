@@ -1,12 +1,5 @@
-export { AdminPage } from './admin-page';
-export { AdminSubdomainsPage } from './admin-subdomains-page';
-export { AdminUsersPage } from './admin-users-page';
-export { LoginPage } from './login-page';
-export { RegisterPage } from './register-page';
-export { VerifyPage } from './verify-page';
-export { ForgotPasswordPage } from './forgot-password-page';
-export { ResetPasswordPage } from './reset-password-page';
-export { TwoFactorSetupPage } from './two-factor-setup-page';
-export { HomePage } from './home-page';
-export { DashboardPage } from './dashboard-page';
-export { DomainDetailPage } from './domain-detail-page';
+export * from './admin';
+export * from './auth';
+export * from './billing';
+export * from './domains';
+export * from './public';

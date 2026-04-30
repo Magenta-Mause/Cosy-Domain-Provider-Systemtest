@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures';
-import { VerifyPage } from '@pages/verify-page';
+import { VerifyPage } from '@pages/index';
 import {
   MailService,
   generateTestEmail,

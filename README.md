@@ -27,6 +27,7 @@ npx playwright install --with-deps chromium
 | `npm run test:staging:admin` | Run the Admin Portal smoke tests |
 | `npm run test:staging:mail` | Run staging with opt-in mail-flow tests enabled |
 | `npm run test:staging:mfa-ui` | Run the visible MFA setup/login UI test |
+| `npm run test:staging:stripe` | Run the Stripe Checkout subscription test |
 | `npm run test:headed` | Run with visible browser window |
 | `npm run test:ui` | Open Playwright UI mode (interactive, with watch) |
 | `npm run test:debug` | Step through tests in debug mode |
@@ -78,9 +79,11 @@ npm run test:staging:mfa-ui -- --headed --timeout=120000
 tests/
 ├── fixtures/   # Custom test fixtures (extended test object)
 ├── helpers/    # Shared helper functions and test data utilities
-├── pages/      # Page Object Models
+├── pages/      # Page Object Models grouped by feature area
 └── specs/      # Test specs (one file per feature area)
 ```
+
+Page objects are grouped under `tests/pages/{admin,auth,billing,domains,public}` and re-exported through `@pages/index`.
 
 ---
 

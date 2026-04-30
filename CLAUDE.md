@@ -10,6 +10,7 @@ npm run test:staging    # Run default staging suite with one worker
 npm run test:staging:admin # Run Admin Portal smoke tests
 npm run test:staging:mail # Run staging with opt-in mail-flow tests
 npm run test:staging:mfa-ui # Run visible MFA setup/login UI test
+npm run test:staging:stripe # Run Stripe Checkout subscription test
 npm run test:headed     # Run with visible browser
 npm run test:ui         # Interactive Playwright UI (watch mode)
 npm run test:debug      # Step-through debugger
@@ -54,7 +55,7 @@ tests/
   fixtures/index.ts      # Custom test + expect — always import from here
   helpers/index.ts       # Shared utilities (generateSubdomain, generateTestEmail, waitForApiIdle)
   helpers/mail-service.ts# MailService class — wartet auf Mails, extrahiert Tokens
-  pages/                 # Page Object Models, one file per route
+  pages/                 # Page Object Models, grouped by feature area
   specs/                 # Test files
 ```
 
@@ -68,17 +69,8 @@ tests/
 - **Mail-heavy specs:** the default staging run only sends the setup verification mail. Specs that exercise additional verification/reset mails require `RUN_MAIL_FLOW_TESTS=1` or `npm run test:staging:mail`.
 - **MFA UI:** `npm run test:staging:mfa-ui -- --headed --timeout=120000` runs the browser-visible MFA setup and MFA challenge flow.
 - **Cleanup:** users registered by setup/specs are recorded in `.auth/cleanup-users.json` and deleted in `globalTeardown`.
-- **One page object per route:**
-
-| Route | Page Object |
-|-------|-------------|
-| `/` | `HomePage` |
-| `/login` | `LoginPage` |
-| `/register` | `RegisterPage` |
-| `/verify` | `VerifyPage` |
-| `/forgot-password` | `ForgotPasswordPage` |
-| `/dashboard` | `DashboardPage` |
-| `/domain/:id` | `DomainDetailPage` |
+- **Page objects are grouped by feature area** under `tests/pages/{admin,auth,billing,domains,public}`.
+- **Specs should import page objects from `@pages/index`** unless a test explicitly needs a local file import.
 
 > **Hinweis:** Login und Register sind zweistufig (E-Mail → Passwort/Details).
 > Das Register-Formular (Schritt 2) verwendet **Cloudflare Turnstile** — der Submit-Button bleibt in headless Playwright deaktiviert bis das CAPTCHA-Token vorliegt. End-to-End-Tests für den vollen Registrierungsflow benötigen entweder headed Mode oder einen Turnstile-Bypass.
