@@ -21,6 +21,6 @@ export class VerifyPage {
 
   async verifyWithCode(code: string) {
     await this.codeInput.fill(code);
-    await this.submitBtn.click();
+    // Filling 6 chars triggers auto-submit; no manual click needed
   }
 }
