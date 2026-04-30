@@ -1,6 +1,11 @@
 import { test, expect } from '../fixtures';
 import { VerifyPage } from '@pages/verify-page';
-import { MailService, generateTestEmail, enableCaptchaBypass } from '@helpers/index';
+import {
+  MailService,
+  generateTestEmail,
+  enableCaptchaBypass,
+  recordCleanupUser,
+} from '@helpers/index';
 
 test.describe('E-Mail-Verifizierungs-Flow', () => {
   test.skip(
@@ -23,6 +28,11 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
       data: { ...opts, captchaToken: 'BYPASS' },
     });
     expect(res.status()).toBe(201);
+    recordCleanupUser({
+      email: opts.email,
+      password: opts.password,
+      source: 'auth-email.spec.ts',
+    });
   }
 
   test('Registrierung löst Verifizierungsmail aus, Token-Link verifiziert den Account', async ({

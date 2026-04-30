@@ -5,6 +5,7 @@ const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173';
 export default defineConfig({
   testDir: './tests/specs',
   globalSetup: require.resolve('./tests/global-setup'),
+  globalTeardown: require.resolve('./tests/global-teardown'),
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

@@ -1,14 +1,17 @@
 import type { BrowserContext, Page } from '@playwright/test';
 
 export { MailService } from './mail-service';
+export { STRIPE_TEST_CARD } from './stripe-test-data';
 export { generateTotpCode } from './totp';
 export {
   requireRuntimeTestUser,
   readRuntimeTestUserState,
+  recordCleanupUser,
+  updateCleanupUser,
   APP_USER_STATE_PATH,
   TEST_USER_STATE_PATH,
 } from './runtime-test-user';
-export type { RuntimeTestUser, RuntimeTestUserState } from './runtime-test-user';
+export type { CleanupTestUser, RuntimeTestUser, RuntimeTestUserState } from './runtime-test-user';
 
 export function generateSubdomain(): string {
   return `test-${Math.random().toString(36).slice(2, 8)}`;

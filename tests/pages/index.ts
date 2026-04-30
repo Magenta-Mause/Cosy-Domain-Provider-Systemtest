@@ -1,3 +1,6 @@
+export { AdminPage } from './admin-page';
+export { AdminSubdomainsPage } from './admin-subdomains-page';
+export { AdminUsersPage } from './admin-users-page';
 export { LoginPage } from './login-page';
 export { RegisterPage } from './register-page';
 export { VerifyPage } from './verify-page';

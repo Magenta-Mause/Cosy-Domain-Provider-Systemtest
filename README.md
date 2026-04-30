@@ -24,7 +24,9 @@ npx playwright install --with-deps chromium
 |---|---|
 | `npm test` | Run all tests headless (localhost) |
 | `npm run test:staging` | Run the default staging suite with one worker |
+| `npm run test:staging:admin` | Run the Admin Portal smoke tests |
 | `npm run test:staging:mail` | Run staging with opt-in mail-flow tests enabled |
+| `npm run test:staging:mfa-ui` | Run the visible MFA setup/login UI test |
 | `npm run test:headed` | Run with visible browser window |
 | `npm run test:ui` | Open Playwright UI mode (interactive, with watch) |
 | `npm run test:debug` | Step through tests in debug mode |
@@ -56,11 +58,18 @@ In CI, set `STAGING_AUTH_USERNAME`, `STAGING_AUTH_PASSWORD`, and `MAIL_SERVICE_A
 The Staging credentials are only used for the Staging barrier. The app test user is created during Playwright global setup via `/api/v1/auth/register`, verified through the test mailbox, secured with MFA, and written to `.auth/test-user.json` for fixtures that require an authenticated app user. The authenticated browser state after password + MFA login is stored in `.auth/app-user-state.json`.
 
 By default, staging only sends the setup verification mail. Additional mail-heavy specs are skipped unless `RUN_MAIL_FLOW_TESTS=1` is set, or `npm run test:staging:mail` is used.
+At the end of a suite, registered test users are deleted through `globalTeardown`.
 
 To watch the global setup verification browser:
 
 ```bash
 HEADED_SETUP=1 SLOW_MO_MS=500 npm run test:staging -- tests/specs/authenticated-setup.spec.ts --headed
+```
+
+To watch the MFA setup and MFA login challenge in the browser:
+
+```bash
+npm run test:staging:mfa-ui -- --headed --timeout=120000
 ```
 
 ## Project Structure

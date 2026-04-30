@@ -5,7 +5,10 @@ import {
   APP_USER_STATE_PATH,
   ensureAuthDir,
   generateRuntimeTestUser,
+  recordCleanupUser,
+  resetCleanupUsers,
   STAGING_STATE_PATH,
+  updateCleanupUser,
   writeRuntimeTestUserState,
 } from './helpers/runtime-test-user';
 import { generateTotpCode } from './helpers/totp';
@@ -40,6 +43,17 @@ export default async function globalSetup() {
   const baseURL = process.env.BASE_URL ?? 'http://localhost:5173';
 
   await setupStagingBarrier({ baseURL, username, password });
+  resetCleanupUsers();
+  if (process.env.SKIP_APP_TEST_USER_SETUP === '1') {
+    writeRuntimeTestUserState({
+      status: 'skipped',
+      baseURL,
+      createdAt: new Date().toISOString(),
+      error: 'App-Testuser-Setup wurde per SKIP_APP_TEST_USER_SETUP=1 übersprungen.',
+    });
+    clearAuthenticatedAppState();
+    return;
+  }
   await setupRuntimeTestUser(baseURL);
 }
 
@@ -87,6 +101,12 @@ async function setupRuntimeTestUser(baseURL: string) {
   }
 
   const user = generateRuntimeTestUser();
+  recordCleanupUser({
+    email: user.email,
+    password: user.password,
+    source: 'global-setup',
+    createdAt: createdAt.toISOString(),
+  });
   const ctx = await request.newContext({
     baseURL,
     storageState: createRuntimeApiStorageState(baseURL),
@@ -119,6 +139,7 @@ async function setupRuntimeTestUser(baseURL: string) {
     );
     const identityToken = await fetchIdentityToken(baseURL, verificationStorageState);
     const mfaSecret = await setupMfa(baseURL, verificationStorageState, identityToken);
+    updateCleanupUser(user.email, { mfaSecret });
     await createAuthenticatedAppState(baseURL, user, mfaSecret, verificationStorageState);
 
     writeRuntimeTestUserState({

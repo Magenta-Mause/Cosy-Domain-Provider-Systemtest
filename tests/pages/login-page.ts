@@ -71,6 +71,15 @@ export class LoginPage {
     await this.page.waitForURL((url) => !url.pathname.includes('/login'));
   }
 
+  async submitCredentialsForMfa(email: string, password: string) {
+    await this.emailInput.fill(email);
+    await this.emailContinueBtn.click();
+    await this.passwordInput.waitFor({ state: 'visible' });
+    await this.passwordInput.fill(password);
+    await this.submitBtn.click();
+    await this.mfaTotpInput.waitFor({ state: 'visible' });
+  }
+
   async completeMfa(code: string) {
     await this.mfaTotpInput.fill(code);
     await this.page.waitForURL((url) => !url.pathname.includes('/login'));

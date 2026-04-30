@@ -6,7 +6,13 @@ import {
   TwoFactorSetupPage,
   VerifyPage,
 } from '@pages/index';
-import { MailService, enableCaptchaBypass, generateTestEmail } from '@helpers/index';
+import {
+  MailService,
+  enableCaptchaBypass,
+  generateTestEmail,
+  recordCleanupUser,
+  updateCleanupUser,
+} from '@helpers/index';
 
 test.describe('Passwort-Reset-Flow', () => {
   async function registerViaApi(
@@ -19,6 +25,11 @@ test.describe('Passwort-Reset-Flow', () => {
       data: { ...opts, captchaToken: 'BYPASS' },
     });
     expect(res.status()).toBe(201);
+    recordCleanupUser({
+      email: opts.email,
+      password: opts.password,
+      source: 'password-reset.spec.ts',
+    });
   }
 
   async function verifyAccount(page: import('@playwright/test').Page, email: string, after: Date) {
@@ -96,6 +107,7 @@ test.describe('Passwort-Reset-Flow', () => {
       const twoFactorSetup = new TwoFactorSetupPage(page);
       await resetPassword.navigateWithToken(mail.extractResetPasswordToken(resetMail));
       await resetPassword.resetPassword(newPassword);
+      updateCleanupUser(email, { password: newPassword });
       await expect(twoFactorSetup.heading).toBeVisible();
     });
 
