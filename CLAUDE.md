@@ -1,6 +1,6 @@
 # Cosy Domain Provider — Systemtests
 
-Playwright end-to-end tests for the `cosy-domain-provider-frontend` (React SPA at `localhost:5173`).
+Playwright end-to-end tests for the `../Cosy-Domain-Provider-Frontend` (React SPA at `localhost:5173`).
 
 ## Commands
 
@@ -49,8 +49,6 @@ In CI die Credentials als Secrets setzen — `.env.local` wird ignoriert wenn di
 ## Project structure
 
 ```
-docs/
-  mail-service.md        # Mail Service API reference (ohne Secrets)
 tests/
   fixtures/index.ts      # Custom test + expect — always import from here
   helpers/index.ts       # Shared utilities (generateSubdomain, generateTestEmail, waitForApiIdle)
@@ -63,7 +61,7 @@ tests/
 
 - **Always import `test` and `expect` from `@fixtures/index`**, never directly from `@playwright/test`.
 - **All selectors go in page objects**, never inline in specs. Use `page.getByTestId(...)`.
-- **`data-testid` attributes are owned by the frontend.** If one is missing, add it in `cosy-domain-provider-frontend` first, then reference it here.
+- **`data-testid` attributes are owned by the frontend.** If one is missing, add it in `../Cosy-Domain-Provider-Frontend` first, then reference it here.
 - **Test descriptions in German** — matches `locale: 'de-DE'` in the Playwright config.
 - **Auth in tests:** use the `authenticatedPage` fixture for tests that require a logged-in user. The app test user is created in `global-setup` via API, verified through the test mailbox, secured with MFA, and stored in `.auth/test-user.json`; the authenticated browser state after password + MFA login is stored in `.auth/app-user-state.json`. `STAGING_AUTH_USERNAME` / `STAGING_AUTH_PASSWORD` are only for the Staging barrier, not for app login.
 - **Mail-heavy specs:** the default staging run only sends the setup verification mail. Specs that exercise additional verification/reset mails require `RUN_MAIL_FLOW_TESTS=1` or `npm run test:staging:mail`.
