@@ -6,6 +6,7 @@ export const STAGING_STATE_PATH = path.join(AUTH_DIR, 'state.json');
 export const TEST_USER_STATE_PATH = path.join(AUTH_DIR, 'test-user.json');
 export const APP_USER_STATE_PATH = path.join(AUTH_DIR, 'app-user-state.json');
 export const CLEANUP_USERS_PATH = path.join(AUTH_DIR, 'cleanup-users.json');
+export const CLEANUP_FAILURES_PATH = path.join(AUTH_DIR, 'cleanup-failures.json');
 
 export type RuntimeTestUser = {
   email: string;
@@ -41,6 +42,12 @@ export type CleanupTestUser = {
   mfaSecret?: string;
   createdAt: string;
   source: string;
+};
+
+export type CleanupFailure = CleanupTestUser & {
+  failedAt: string;
+  reason: string;
+  attempts: number;
 };
 
 export function ensureAuthDir() {
@@ -100,6 +107,25 @@ export function readCleanupUsers(): CleanupTestUser[] {
   }
 
   return JSON.parse(fs.readFileSync(CLEANUP_USERS_PATH, 'utf-8')) as CleanupTestUser[];
+}
+
+export function readCleanupFailures(): CleanupFailure[] {
+  if (!fs.existsSync(CLEANUP_FAILURES_PATH)) {
+    return [];
+  }
+  return JSON.parse(fs.readFileSync(CLEANUP_FAILURES_PATH, 'utf-8')) as CleanupFailure[];
+}
+
+export function recordCleanupFailure(failure: CleanupFailure) {
+  ensureAuthDir();
+  const failures = readCleanupFailures().filter((entry) => entry.email !== failure.email);
+  failures.push(failure);
+  fs.writeFileSync(CLEANUP_FAILURES_PATH, `${JSON.stringify(failures, null, 2)}\n`);
+}
+
+export function clearCleanupFailures() {
+  ensureAuthDir();
+  fs.writeFileSync(CLEANUP_FAILURES_PATH, `${JSON.stringify([], null, 2)}\n`);
 }
 
 export function readRuntimeTestUserState(): RuntimeTestUserState {

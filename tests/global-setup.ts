@@ -1,16 +1,19 @@
 import { chromium, request } from '@playwright/test';
 import * as fs from 'fs';
+import { deleteOrphanPlaywrightUsers, getAdminKey } from './helpers/admin-cleanup';
+import { processCleanupQueue } from './helpers/cleanup';
 import { MailService } from './helpers/mail-service';
 import {
   APP_USER_STATE_PATH,
+  clearCleanupFailures,
   ensureAuthDir,
   generateRuntimeTestUser,
   recordCleanupUser,
-  resetCleanupUsers,
   STAGING_STATE_PATH,
   updateCleanupUser,
   writeRuntimeTestUserState,
 } from './helpers/runtime-test-user';
+import { setupStagingBarrier } from './helpers/staging-auth';
 import { generateTotpCode } from './helpers/totp';
 
 const VERIFY_MAIL_SUBJECT = 'Verify Your Account';
@@ -43,7 +46,7 @@ export default async function globalSetup() {
   const baseURL = process.env.BASE_URL ?? 'http://localhost:5173';
 
   await setupStagingBarrier({ baseURL, username, password });
-  resetCleanupUsers();
+  await preRunCleanup(baseURL);
   if (process.env.SKIP_APP_TEST_USER_SETUP === '1') {
     writeRuntimeTestUserState({
       status: 'skipped',
@@ -57,32 +60,47 @@ export default async function globalSetup() {
   await setupRuntimeTestUser(baseURL);
 }
 
-async function setupStagingBarrier(opts: {
-  baseURL: string;
-  username: string | undefined;
-  password: string | undefined;
-}) {
-  const { baseURL, username, password } = opts;
+async function preRunCleanup(baseURL: string) {
+  clearCleanupFailures();
 
-  if (!username || !password) {
-    fs.writeFileSync(STAGING_STATE_PATH, JSON.stringify({ cookies: [], origins: [] }));
-    return;
+  try {
+    const queueResult = await processCleanupQueue(baseURL);
+    if (queueResult.deleted.length > 0) {
+      console.log(
+        `Pre-Run-Cleanup: ${queueResult.deleted.length} Karteileichen aus letztem Run gelöscht.`,
+      );
+    }
+    if (queueResult.failed.length > 0) {
+      const lines = queueResult.failed.map((f) => `  - ${f.email}: ${f.reason}`).join('\n');
+      console.warn(
+        `Pre-Run-Cleanup: ${queueResult.failed.length} permanente Fehler (siehe .auth/cleanup-failures.json):\n${lines}`,
+      );
+    }
+  } catch (error) {
+    console.warn(
+      `Pre-Run-Cleanup (cleanup-users.json) übersprungen: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
-  const ctx = await request.newContext({ baseURL });
-  try {
-    const creds = Buffer.from(`${username}:${password}`).toString('base64');
-    const res = await ctx.post('/api/v1/staging-auth', {
-      headers: { Authorization: `Basic ${creds}` },
-    });
-
-    if (!res.ok()) {
-      throw new Error(`Staging-Auth fehlgeschlagen: ${res.status()} ${await res.text()}`);
+  if (getAdminKey()) {
+    try {
+      const orphanResult = await deleteOrphanPlaywrightUsers(baseURL);
+      if (orphanResult.deleted.length > 0) {
+        console.log(
+          `Pre-Run-Cleanup (Admin-Scan): ${orphanResult.deleted.length} verwaiste Playwright-User gelöscht.`,
+        );
+      }
+      if (orphanResult.failed.length > 0) {
+        const lines = orphanResult.failed.map((f) => `  - ${f.email}: ${f.reason}`).join('\n');
+        console.warn(
+          `Pre-Run-Cleanup (Admin-Scan): ${orphanResult.failed.length} fehlgeschlagen:\n${lines}`,
+        );
+      }
+    } catch (error) {
+      console.warn(
+        `Pre-Run-Cleanup (Admin-Scan) übersprungen: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
-
-    await ctx.storageState({ path: STAGING_STATE_PATH });
-  } finally {
-    await ctx.dispose();
   }
 }
 
