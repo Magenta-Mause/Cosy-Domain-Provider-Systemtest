@@ -21,6 +21,10 @@ jobs:
       STAGING_AUTH_PASSWORD: ${{ secrets.STAGING_AUTH_PASSWORD }}
       MAIL_SERVICE_API_KEY: ${{ secrets.MAIL_SERVICE_API_KEY }}
       ADMIN_PORTAL_API_KEY: ${{ secrets.ADMIN_PORTAL_API_KEY }}
+      RUN_MAIL_FLOW_TESTS: '1'
+      RUN_MFA_UI_TESTS: '1'
+      RUN_STRIPE_TESTS: '1'
+      RUN_ADMIN_TESTS: '1'
 
     steps:
       - uses: actions/checkout@v4
