@@ -10,6 +10,7 @@ import {
   MailService,
   enableCaptchaBypass,
   generateTestEmail,
+  generateTotpCode,
   recordCleanupUser,
   updateCleanupUser,
 } from '@helpers/index';
@@ -30,6 +31,15 @@ test.describe('Passwort-Reset-Flow', () => {
       password: opts.password,
       source: 'password-reset.spec.ts',
     });
+
+    const tokenRes = await page.request.get(`${baseUrl}/api/v1/auth/token`);
+    expect(tokenRes.ok()).toBeTruthy();
+    const identityToken = await tokenRes.text();
+    const resendRes = await page.request.post(
+      `${baseUrl}/api/v1/auth/resend-verification`,
+      { headers: { Authorization: `Bearer ${identityToken}` } },
+    );
+    expect(resendRes.ok()).toBeTruthy();
   }
 
   async function verifyAccount(page: import('@playwright/test').Page, email: string, after: Date) {
@@ -72,11 +82,12 @@ test.describe('Passwort-Reset-Flow', () => {
       'MAIL_SERVICE_API_KEY nicht gesetzt — Mail-Tests übersprungen',
     );
 
-    test('Reset-Link aus der Mail setzt ein neues Passwort und authentifiziert den Nutzer', async ({
+    test('Reset-Link setzt neues Passwort und MFA wird mit zurückgesetzt', async ({
       page,
     }) => {
-      test.setTimeout(60_000);
+      test.setTimeout(120_000);
 
+      const baseUrl = process.env.BASE_URL ?? 'http://localhost:5173';
       const email = generateTestEmail();
       const oldPassword = 'OldTest1234!';
       const newPassword = `NewTest1234!${Date.now().toString(36)}`;
@@ -88,6 +99,29 @@ test.describe('Passwort-Reset-Flow', () => {
         password: oldPassword,
       });
       await verifyAccount(page, email, registeredAt);
+
+      // Initiales MFA per API einrichten (UI-Setup wird in mfa-ui.spec.ts geprüft).
+      const initialToken = await page.request
+        .get(`${baseUrl}/api/v1/auth/token`)
+        .then((r) => r.text());
+      const initialSetup = (await page.request
+        .post(`${baseUrl}/api/v1/auth/mfa/setup`, {
+          headers: { Authorization: `Bearer ${initialToken}` },
+        })
+        .then((r) => r.json())) as { secret: string };
+      const initialSecret = initialSetup.secret;
+      updateCleanupUser(email, { mfaSecret: initialSecret });
+      const initialConfirmRes = await page.request.post(
+        `${baseUrl}/api/v1/auth/mfa/confirm`,
+        {
+          headers: { Authorization: `Bearer ${initialToken}` },
+          data: { totpCode: generateTotpCode(initialSecret) },
+        },
+      );
+      expect(initialConfirmRes.ok()).toBeTruthy();
+
+      await page.context().clearCookies();
+      await enableCaptchaBypass(page.context());
 
       const forgotPassword = new ForgotPasswordPage(page);
       await forgotPassword.navigate();
@@ -104,11 +138,51 @@ test.describe('Passwort-Reset-Flow', () => {
       });
 
       const resetPassword = new ResetPasswordPage(page);
-      const twoFactorSetup = new TwoFactorSetupPage(page);
       await resetPassword.navigateWithToken(mail.extractResetPasswordToken(resetMail));
       await resetPassword.resetPassword(newPassword);
       updateCleanupUser(email, { password: newPassword });
-      await expect(twoFactorSetup.heading).toBeVisible();
+
+      await page.waitForURL(/\/login/, { timeout: 10_000 });
+
+      // Programmatisches Login (Turnstile-Widget blockiert UI-Login headless).
+      const loginRes = await page.request.post(
+        `${baseUrl}/api/v1/auth/login?tokenMode=COOKIE`,
+        { data: { email, password: newPassword, captchaToken: 'BYPASS' } },
+      );
+      expect(loginRes.ok()).toBeTruthy();
+      // mfaRequired=false → leerer Body. Falls Backend MFA noch hätte, käme JSON.
+      expect(await loginRes.text()).toBe('');
+
+      // Nach Login navigiert das Dashboard via require-full-auth zu /mfa-setup,
+      // weil mfaEnabled jetzt false ist — das ist der eigentliche MFA-Reset-Beweis.
+      await page.goto('/dashboard');
+      await expect(page).toHaveURL(/\/mfa-setup/, { timeout: 10_000 });
+      const setup = new TwoFactorSetupPage(page);
+      await expect(setup.heading).toBeVisible();
+
+      // Neuen MFA-Secret aus dem Backend holen + bestätigen (API umgeht den
+      // input-otp / React-StrictMode-Race im Dev-Build).
+      const newToken = await page.request
+        .get(`${baseUrl}/api/v1/auth/token`)
+        .then((r) => r.text());
+      const newSetup = (await page.request
+        .post(`${baseUrl}/api/v1/auth/mfa/setup`, {
+          headers: { Authorization: `Bearer ${newToken}` },
+        })
+        .then((r) => r.json())) as { secret: string };
+      expect(newSetup.secret).not.toBe(initialSecret);
+      updateCleanupUser(email, { mfaSecret: newSetup.secret });
+      const newConfirmRes = await page.request.post(
+        `${baseUrl}/api/v1/auth/mfa/confirm`,
+        {
+          headers: { Authorization: `Bearer ${newToken}` },
+          data: { totpCode: generateTotpCode(newSetup.secret) },
+        },
+      );
+      expect(newConfirmRes.ok()).toBeTruthy();
+
+      await page.goto('/dashboard');
+      await expect(page).toHaveURL(/\/dashboard/);
     });
 
     test('Ungültige Reset-Tokens zeigen eine verständliche Fehlermeldung', async ({ page }) => {
