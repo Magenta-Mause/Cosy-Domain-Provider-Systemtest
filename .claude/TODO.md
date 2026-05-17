@@ -32,17 +32,16 @@ Admin-API ist nutzbar: `GET /api/v1/admin/users`, `DELETE /api/v1/admin/users/{u
 
 ## Phase 2 — CI/CD Pipeline reparieren
 
-- [ ] **2.1 Docker-Image-Mismatch fixen:** `.github/workflows/playwright.yml`
-  - Image auf `mcr.microsoft.com/playwright:v1.59.1-noble` heben (oder ohne Container laufen + `npx playwright install --with-deps chromium`). Pin an Playwright-Version aus `package.json`.
-- [ ] **2.2 Secrets in GitHub einrichten** (User-Aktion, hier dokumentieren):
-  - `STAGING_AUTH_USERNAME`, `STAGING_AUTH_PASSWORD`
-  - `MAIL_SERVICE_API_KEY`
-  - `ADMIN_PORTAL_API_KEY`
-  - `BASE_URL` als Repo-Variable (Staging-URL)
-- [ ] **2.3 Workflow auf Staging umstellen:** `npm run test:staging` statt `npx playwright test`, weil ohne laufende lokale App `BASE_URL=localhost:5173` nutzlos ist. Mail/MFA/Stripe-Flag-Specs bleiben opt-in.
-- [ ] **2.4 Concurrency-Group setzen:** verhindert parallele Runs gegen Staging die sich Cleanup-Konflikte einhandeln.
-- [ ] **2.5 Artifacts:** prüfen dass `playwright-report/`, `test-results/` (Traces, Videos, Screenshots) bei Failure hochgeladen werden.
+- [x] **2.1 Docker-Image-Mismatch fixen:** kein Container mehr — `ubuntu-latest` + `npx playwright install --with-deps chromium`. Browser bleibt automatisch in sync mit `package.json`.
+- [ ] **2.2 Secrets/Variablen in GitHub einrichten** (User-Aktion, dokumentiert in `docs/ci-grafana-setup.md`):
+  - Secrets: `STAGING_AUTH_USERNAME`, `STAGING_AUTH_PASSWORD`, `MAIL_SERVICE_API_KEY`, `ADMIN_PORTAL_API_KEY`
+  - Repo-Variable: `BASE_URL` = Staging-URL
+- [x] **2.3 Workflow auf Staging umstellen:** `npm run test:staging`, Trigger nur noch `workflow_dispatch` + Nightly cron `0 23 * * *`. Push/PR-Trigger entfernt.
+- [x] **2.4 Concurrency-Group gesetzt:** `playwright-staging`, `cancel-in-progress: false` — Runs queueen statt zu überlappen.
+- [x] **2.5 Artifacts:** `playwright-report/` (always, 7 d), `test-results/` (nur bei Failure, 7 d).
 - [ ] **2.6 Failure-Notification (optional):** Slack/Email bei rotem main.
+- [ ] **2.7 Grafana-Dashboard:** Datasource + Panels laut `docs/ci-grafana-setup.md` einrichten (User-Aktion). Infinity-Plugin, GitHub-PAT, vier Panels (Letzter Run, Erfolgsrate, Tabelle, Tage seit Failure).
+- [ ] **2.8 `docs/ci-grafana-setup.md` löschen**, sobald Grafana steht — die Datei ist nur eine Einmal-Anleitung, nicht zum dauerhaften Mitleben gedacht.
 
 ## Phase 3 — Coverage-Erweiterung
 
