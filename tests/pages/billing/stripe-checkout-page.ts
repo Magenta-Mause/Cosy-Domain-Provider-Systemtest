@@ -13,15 +13,15 @@ export class StripeCheckoutPage {
   }
 
   get expiryInput() {
-    return this.page.getByLabel(/expiration|expiry|ablauf/i);
+    return this.page.getByLabel(/expiration|expiry|ablauf|gültig bis/i);
   }
 
   get cvcInput() {
-    return this.page.getByLabel(/cvc|cvv|security code|sicherheitscode/i);
+    return this.page.getByLabel(/cvc|cvv|security code|sicherheitscode|prüfziffer/i);
   }
 
   get cardholderNameInput() {
-    return this.page.getByLabel(/cardholder name|name on card|name des karteninhabers/i);
+    return this.page.getByLabel(/cardholder name|name on card|karteninhaber/i);
   }
 
   get postalCodeInput() {

@@ -31,4 +31,9 @@ export class BillingPage {
     await this.portalButton.click();
     await this.page.waitForURL(/checkout\.stripe\.com/);
   }
+
+  async openPortal() {
+    await this.portalButton.click();
+    await this.page.waitForURL(/billing\.stripe\.com/, { timeout: 30_000 });
+  }
 }

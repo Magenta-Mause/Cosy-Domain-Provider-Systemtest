@@ -48,7 +48,7 @@ Admin-API ist nutzbar: `GET /api/v1/admin/users`, `DELETE /api/v1/admin/users/{u
 
 - [x] **3.1 Domain-CRUD-Spec:** `tests/specs/domain-crud.spec.ts` (Staging-only, lokales Backend hat kein Route53).
 - [x] **3.2 Settings-Spec:** `tests/specs/settings.spec.ts` (Username + Passwort; MFA-Management entfällt, Feature existiert nicht in Settings-UI).
-- [ ] **3.3 Subscription-Management:** Cancel-Flow im Stripe Customer Portal. Aufwand offen — Portal-UI braucht einen Hands-on-Durchlauf, damit Labels/Selectors stimmen. `RUN_STRIPE_TESTS=1` opt-in.
+- [~] **3.3 Subscription-Management:** Cancel-Spec als `test.fixme` in `billing-stripe.spec.ts` angelegt, `StripePortalPage` mit Cancel-Selectors. Blockiert vom **vorgelagerten Checkout-Step**, der wegen Stripe-UI-Updates lokal+staging nicht durchläuft (`cardNumberInput` nicht sichtbar trotz aktualisierter DE-Labels). Nächster Schritt: mit `npm run test:staging:stripe -- --headed --debug` Hands-on Selector-Reverse-Engineering.
 - [x] **3.4 Static-Pages-Smoke:** `tests/specs/static-pages.spec.ts` (Impressum, Datenschutz, AGB).
 - [~] **3.5 MFA-Recovery:** Feature existiert im Frontend nicht (`src/pages/mfa-*` hat nur Setup + Challenge, keinen Recovery-Code-Flow). Streichen oder erst Feature im Frontend bauen.
 - [x] **3.6 Frontend-data-testids:** `settings-username-success` + `settings-password-success` im Frontend ergänzt (`cecbe9c`).
