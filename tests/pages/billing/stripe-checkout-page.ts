@@ -5,31 +5,33 @@ export class StripeCheckoutPage {
   constructor(private readonly page: Page) {}
 
   get emailInput() {
-    return this.page.getByLabel(/email/i);
+    return this.page.getByRole('textbox', { name: /e-?mail/i });
   }
 
   get cardNumberInput() {
-    return this.page.getByLabel(/card number|card information|kartennummer|karteninformationen/i);
+    return this.page.getByRole('textbox', { name: /kartennummer|card number/i });
   }
 
   get expiryInput() {
-    return this.page.getByLabel(/expiration|expiry|ablauf|gültig bis/i);
+    return this.page.getByRole('textbox', { name: /gültig bis|ablauf|expiration|expiry/i });
   }
 
   get cvcInput() {
-    return this.page.getByLabel(/cvc|cvv|security code|sicherheitscode|prüfziffer/i);
+    return this.page.getByRole('textbox', { name: /prüfziffer|sicherheitscode|cvc|cvv/i });
   }
 
   get cardholderNameInput() {
-    return this.page.getByLabel(/cardholder name|name on card|karteninhaber/i);
+    return this.page.getByRole('textbox', { name: /karteninhaber|cardholder|name on card/i });
   }
 
   get postalCodeInput() {
-    return this.page.getByLabel(/zip|postal|postleitzahl/i);
+    return this.page.getByRole('textbox', { name: /postleitzahl|zip|postal/i });
   }
 
   get submitButton() {
-    return this.page.getByRole('button', { name: /subscribe|pay|zahlen|abonnieren/i }).last();
+    return this.page
+      .getByRole('button', { name: /zahlungspflichtig abonnieren|subscribe|pay now/i })
+      .last();
   }
 
   get aiAgentCheckbox() {
@@ -37,35 +39,46 @@ export class StripeCheckoutPage {
   }
 
   get cardPaymentOption() {
-    return this.page.getByRole('radio', { name: /card|karte/i });
+    return this.page.getByRole('radio', { name: /^karte$|^card$/i });
   }
 
   async completeSubscription(opts: { email: string; name?: string }) {
-    await this.cardPaymentOption.check({ force: true }).catch(() => undefined);
-    await this.page.getByText(/^karte|card$/i).click().catch(() => undefined);
+    if (!(await this.cardPaymentOption.isChecked().catch(() => false))) {
+      await this.cardPaymentOption.check({ force: true }).catch(() => undefined);
+    }
 
-    await this.emailInput.fill(opts.email).catch(() => undefined);
+    if (await this.emailInput.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await this.emailInput.fill(opts.email);
+    }
+
     await this.cardNumberInput.waitFor({ state: 'visible', timeout: 30_000 });
     await this.cardNumberInput.fill(STRIPE_TEST_CARD.number);
     await this.expiryInput.fill(STRIPE_TEST_CARD.expiry);
     await this.cvcInput.fill(STRIPE_TEST_CARD.cvc);
-    await this.cardholderNameInput.fill(opts.name ?? 'Playwright Test').catch(() => undefined);
-    await this.postalCodeInput.fill(STRIPE_TEST_CARD.postalCode).catch(() => undefined);
+
+    if (await this.cardholderNameInput.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await this.cardholderNameInput.fill(opts.name ?? 'Playwright Test');
+    }
+    if (await this.postalCodeInput.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await this.postalCodeInput.fill(STRIPE_TEST_CARD.postalCode);
+    }
+
     await this.acknowledgeAiAgent();
     await this.submitButton.click();
   }
 
   private async acknowledgeAiAgent() {
     const checkbox = this.aiAgentCheckbox;
-    const isVisible = await checkbox.isVisible({ timeout: 5_000 }).catch(() => false);
-    if (!isVisible) return;
+    const exists = (await checkbox.count().catch(() => 0)) > 0;
+    if (!exists) return;
+    if (await checkbox.isChecked().catch(() => false)) return;
 
-    await checkbox.scrollIntoViewIfNeeded();
-    if (!(await checkbox.isChecked())) {
-      await checkbox.click({ force: true });
-    }
-    if (!(await checkbox.isChecked())) {
-      await checkbox.check({ force: true });
+    const label = this.page.getByText(/i am an ai agent acting on behalf of someone else/i).first();
+    await label.scrollIntoViewIfNeeded().catch(() => undefined);
+    await label.click({ force: true }).catch(() => undefined);
+
+    if (!(await checkbox.isChecked().catch(() => false))) {
+      await checkbox.setChecked(true, { force: true }).catch(() => undefined);
     }
   }
 }

@@ -15,6 +15,14 @@ export class BillingPage {
     return this.page.getByText(/^cosy\+$/i).first();
   }
 
+  get manageSubscriptionButton() {
+    return this.page.getByRole('button', { name: /manage subscription|abo verwalten/i });
+  }
+
+  get plusPlanDescription() {
+    return this.page.getByText(/thank you for supporting|danke für deine unterstützung/i);
+  }
+
   get portalButton() {
     return this.page.getByTestId('billing-portal-btn');
   }
