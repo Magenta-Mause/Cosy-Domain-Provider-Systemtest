@@ -64,6 +64,7 @@ Admin-API ist nutzbar: `GET /api/v1/admin/users`, `DELETE /api/v1/admin/users/{u
 - [ ] **4.2 README/CLAUDE.md aktualisieren** für neue ENV-Vars (`TEST_USER_EMAIL_PREFIX`, `TEST_MAIL_DOMAIN_ALLOWLIST`, `ADMIN_PORTAL_API_KEY` als notwendig für Cleanup) und Script `cleanup:staging`.
 - [ ] **4.3 Browser-Matrix erwägen** (Firefox/WebKit Re-Aktivierung) nach CI-Grün.
 - [ ] **4.4 Mail-Service-Timing-Flake (aufgedeckt während Phase 1-Verifikation):** Setup-Verify-Mail kam nicht innerhalb der 45 s `TEST_USER_SETUP_MAIL_TIMEOUT_MS`. Optionen: Default-Timeout auf 90 s erhöhen, Mail-Service-Verfügbarkeit prüfen, oder Setup mit Retry umhüllen. Nicht durch Phase 1 verursacht.
+- [ ] **4.5 Workers > 1 prüfen:** Alle `test:staging*`-Scripts laufen mit `--workers=1`, weil Setup-/Cleanup-Logik bisher seriell gedacht ist und der gemeinsame App-Test-User in `.auth/` nur einmal existiert. Mit allen Opt-in-Suiten im Nightly läuft die Pipeline jetzt aber spürbar länger — lohnt sich Parallelisierung? Knackpunkte: pro Worker einen eigenen App-User registrieren, Stripe-Subscription-State pro Test isolieren, Admin-Cleanup race-condition-frei halten. Erst messen wie lang der Nightly wirklich braucht, dann entscheiden.
 
 ---
 
