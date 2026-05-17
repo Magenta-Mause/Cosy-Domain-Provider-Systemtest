@@ -142,6 +142,16 @@ async function setupRuntimeTestUser(baseURL: string) {
     }
     const verificationStorageState = await ctx.storageState();
 
+    const initialIdentityToken = await fetchIdentityToken(baseURL, verificationStorageState);
+    const resendRes = await ctx.post('/api/v1/auth/resend-verification', {
+      headers: { Authorization: `Bearer ${initialIdentityToken}` },
+    });
+    if (!resendRes.ok()) {
+      throw new Error(
+        `Resend-Verification fehlgeschlagen: ${resendRes.status()} ${await resendRes.text()}`,
+      );
+    }
+
     const mail = new MailService();
     const verifyMail = await mail.waitForMail({
       recipient: user.email,
