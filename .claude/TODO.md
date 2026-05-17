@@ -48,7 +48,23 @@ Admin-API ist nutzbar: `GET /api/v1/admin/users`, `DELETE /api/v1/admin/users/{u
 
 - [x] **3.1 Domain-CRUD-Spec:** `tests/specs/domain-crud.spec.ts` (Staging-only, lokales Backend hat kein Route53).
 - [x] **3.2 Settings-Spec:** `tests/specs/settings.spec.ts` (Username + Passwort; MFA-Management entfällt, Feature existiert nicht in Settings-UI).
-- [~] **3.3 Subscription-Management:** Cancel-Spec als `test.fixme` in `billing-stripe.spec.ts` angelegt, `StripePortalPage` mit Cancel-Selectors. Blockiert vom **vorgelagerten Checkout-Step**, der wegen Stripe-UI-Updates lokal+staging nicht durchläuft (`cardNumberInput` nicht sichtbar trotz aktualisierter DE-Labels). Nächster Schritt: mit `npm run test:staging:stripe -- --headed --debug` Hands-on Selector-Reverse-Engineering.
+- [~] **3.3 Subscription-Management:** Cancel-Spec als `test.fixme` in `billing-stripe.spec.ts` angelegt, `StripePortalPage` mit Cancel-Selectors. Blockiert vom **vorgelagerten Checkout-Step**, der wegen Stripe-UI-Updates nicht durchläuft.
+
+  **Stand am Ende der letzten Session (2026-05-17):**
+  - `tests/pages/billing/stripe-checkout-page.ts:48` — `cardNumberInput.waitFor({ state: 'visible' })` läuft in 30 s Timeout, obwohl im Page-Snapshot eindeutig eine `textbox "Kartennummer"` (ref=e156, ohne iframe-Wrapper) vorhanden ist. Verdacht: `cardPaymentOption.check()` no-op weil radio bereits `[checked]`, der ganze Card-Form-Block ist erst nach explizitem Klick auf `button "Mit Karte zahlen" [active]` interaktiv.
+  - Regex-Labels wurden auf DE erweitert (`gültig bis`, `prüfziffer`, `karteninhaber`) — reicht aber nicht, weil `cardNumberInput` schon vor dem Tippen den Timeout wirft.
+  - Stripe-Cancel-Flow selbst noch komplett ungetestet (`StripePortalPage` rein nach Stripe-Doku gebaut).
+
+  **Plan für die nächste Session:**
+  1. `npm run test:staging:stripe -- --headed --debug` starten, durch den Checkout pausieren bei `await cardPaymentOption.check(...)` und live im DevTools schauen, welches Element das `<input>` für die Card Number tatsächlich wrappt (vermutlich `e156` direkt fokussierbar machen mit `.first()` oder Container-Click davor).
+  2. Sobald Checkout grün ist: `billing.openPortal()` durchklicken, im **Stripe Customer Portal** den Cancel-Flow live mappen. Anker:
+     - Initial: link/button `getByRole('link', { name: /cancel.../ })` — evtl. ist's stattdessen ein Button am Bottom.
+     - Survey/Reason-Auswahl (oft optional)
+     - Final-Confirm: `getByRole('button', { name: /^cancel subscription$/i })`
+     - "Return to Cosy Hosting Sandbox" Link am Ende
+  3. `test.fixme` → `test`. Falls Cancel sofort wirkt (Stripe-Dashboard-Setting "Cancellation: Immediately"), `expect.poll` für `billing.freeBadge.toBeVisible()` ergänzen — sonst nur "Return to App ohne Error" assertion.
+
+  **Test-Karte (laut User):** `4242 4242 4242 4242` mit `11/30` als Ablauf. Lokal harmlos, weil Stripe das in Sandbox öffnet — Webhooks kommen lokal aber nicht durch, deshalb gegen Staging testen.
 - [x] **3.4 Static-Pages-Smoke:** `tests/specs/static-pages.spec.ts` (Impressum, Datenschutz, AGB).
 - [~] **3.5 MFA-Recovery:** Feature existiert im Frontend nicht (`src/pages/mfa-*` hat nur Setup + Challenge, keinen Recovery-Code-Flow). Streichen oder erst Feature im Frontend bauen.
 - [x] **3.6 Frontend-data-testids:** `settings-username-success` + `settings-password-success` im Frontend ergänzt (`cecbe9c`).
