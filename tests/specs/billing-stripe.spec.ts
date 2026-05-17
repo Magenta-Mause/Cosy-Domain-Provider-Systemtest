@@ -42,6 +42,8 @@ test.describe('Stripe-Abonnement-Flow', () => {
     await billing.navigate();
     await billing.openPortal();
     await portal.cancelSubscription();
+    await expect(portal.cancellationNotice).toBeVisible({ timeout: 15_000 });
+    await portal.dismissFeedbackSurvey();
 
     if (await portal.returnToAppLink.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await portal.returnToAppLink.click();

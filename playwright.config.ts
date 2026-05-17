@@ -19,7 +19,7 @@ export default defineConfig({
     storageState: '.auth/state.json',
     trace: 'on',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: process.env.RECORD_VIDEO === '1' ? 'on' : 'retain-on-failure',
     locale: 'de-DE',
   },
 

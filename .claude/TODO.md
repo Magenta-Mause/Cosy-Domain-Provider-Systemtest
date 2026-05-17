@@ -48,11 +48,13 @@ Admin-API ist nutzbar: `GET /api/v1/admin/users`, `DELETE /api/v1/admin/users/{u
 
 - [x] **3.1 Domain-CRUD-Spec:** `tests/specs/domain-crud.spec.ts` (Staging-only, lokales Backend hat kein Route53).
 - [x] **3.2 Settings-Spec:** `tests/specs/settings.spec.ts` (Username + Passwort; MFA-Management entfällt, Feature existiert nicht in Settings-UI).
-- [x] **3.3 Subscription-Management (Subscribe + Cancel):** `billing-stripe.spec.ts` als End-to-End-Test (Subscribe → Plus-Bestätigung → Customer-Portal → Cancel → Return). Läuft grün in ~27 s. Wichtige Lessons:
+- [x] **3.3 Subscription-Management (Subscribe + Cancel):** `billing-stripe.spec.ts` als End-to-End-Test (Subscribe → Plus-Bestätigung → Customer-Portal → Cancel → Cancel-Bestätigung → Return). Läuft grün in ~27 s. Wichtige Lessons:
   - Stripe-Checkout-Felder via `getByRole('textbox', { name })` ansprechen, nicht `getByLabel` — Stripe nutzt aria-label statt `<label for>`.
   - "I am an AI agent" Checkbox ist visuell versteckt; Label-Klick + `setChecked(true, { force: true })` als Fallback.
   - Plus-Bestätigung pollt `plusPlanDescription` (eindeutiger Text "Thank you for supporting") und wartet zwischen Reloads explizit auf `currentPlanLabel`, damit der SPA-Bootstrap fertig ist — sonst hängt der Test bei "Loading…".
   - Customer Portal ist auf Deutsch: `link "Abonnement kündigen"` statt englischer Texte.
+  - **Nach Cancel-Confirm öffnet Stripe einen Feedback-Survey-Modal** ("Aus welchem Grund haben Sie dieses Abonnement gekündigt?"), der `returnToAppLink` blockiert. Deshalb in `StripePortalPage` getrennt: `cancelSubscription()` macht nur Click+Confirm, `dismissFeedbackSurvey()` klickt "Nein danke". Dazwischen die Assertion auf `cancellationNotice` ("Abonnement wurde gekündigt").
+  - Headed-Run mit Videos: `RECORD_VIDEO=1 HEADED_SETUP=1 SLOW_MO_MS=300 npm run test:staging:stripe -- --headed` (Config liest `RECORD_VIDEO` und schaltet `video: 'on'`).
 - [x] **3.4 Static-Pages-Smoke:** `tests/specs/static-pages.spec.ts` (Impressum, Datenschutz, AGB).
 - [~] **3.5 MFA-Recovery:** Feature existiert im Frontend nicht (`src/pages/mfa-*` hat nur Setup + Challenge, keinen Recovery-Code-Flow). Streichen oder erst Feature im Frontend bauen.
 - [x] **3.6 Frontend-data-testids:** `settings-username-success` + `settings-password-success` im Frontend ergänzt (`cecbe9c`).
