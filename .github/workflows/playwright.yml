@@ -17,6 +17,7 @@ jobs:
 
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         include:
           - suite: default
@@ -46,6 +47,7 @@ jobs:
       STAGING_AUTH_PASSWORD: ${{ secrets.STAGING_AUTH_PASSWORD }}
       MAIL_SERVICE_API_KEY: ${{ secrets.MAIL_SERVICE_API_KEY }}
       ADMIN_PORTAL_API_KEY: ${{ secrets.ADMIN_PORTAL_API_KEY }}
+      TEST_USER_SETUP_MAIL_TIMEOUT_MS: '120000'
 
     steps:
       - uses: actions/checkout@v4
