@@ -7,6 +7,26 @@ test.describe('Stripe-Abonnement-Flow', () => {
     'Stripe-Tests laufen nur mit RUN_STRIPE_TESTS=1.',
   );
 
+  test.beforeEach(async ({ authenticatedPage }) => {
+    // Auto-heal: wenn der Fixture-User aus einem abgebrochenen Vorlauf noch auf
+    // Cosy+ steht, hier zurück auf Free zwingen damit der eigentliche Test sauber
+    // startet. Bei ephemeren Usern (USE_FIXTURE_USER nicht gesetzt) ist das ein
+    // No-op weil der frisch registrierte User immer auf Free steht.
+    const billing = new BillingPage(authenticatedPage);
+    const portal = new StripePortalPage(authenticatedPage);
+
+    await billing.navigate();
+    await expect(billing.currentPlanLabel).toBeVisible({ timeout: 30_000 });
+
+    if (await billing.plusBadge.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await billing.openPortal();
+      await portal.cancelSubscription();
+      await portal.dismissFeedbackSurvey();
+      await authenticatedPage.goto('/billing');
+      await expect(billing.freeBadge).toBeVisible({ timeout: 30_000 });
+    }
+  });
+
   test('Nutzer kann Cosy+ abonnieren und im Customer Portal wieder kündigen', async ({
     authenticatedPage,
     appTestUser,
@@ -17,39 +37,57 @@ test.describe('Stripe-Abonnement-Flow', () => {
     const checkout = new StripeCheckoutPage(authenticatedPage);
     const portal = new StripePortalPage(authenticatedPage);
 
-    await billing.navigate();
-    await expect(billing.currentPlanLabel).toBeVisible();
-    await expect(billing.freeBadge).toBeVisible();
+    let subscribed = false;
+    let cancelled = false;
 
-    await billing.openCheckout();
-    await checkout.completeSubscription({
-      email: appTestUser.email,
-      name: appTestUser.username,
-    });
+    try {
+      await billing.navigate();
+      await expect(billing.currentPlanLabel).toBeVisible();
+      await expect(billing.freeBadge).toBeVisible();
 
-    await authenticatedPage.waitForURL(/\/billing\?success=true/, { timeout: 90_000 });
-    await expect
-      .poll(
-        async () => {
-          await authenticatedPage.goto('/billing');
-          await expect(billing.currentPlanLabel).toBeVisible({ timeout: 15_000 });
-          return await billing.plusPlanDescription.isVisible().catch(() => false);
-        },
-        { timeout: 240_000, intervals: [3_000, 8_000] },
-      )
-      .toBe(true);
+      await billing.openCheckout();
+      await checkout.completeSubscription({
+        email: appTestUser.email,
+        name: appTestUser.username,
+      });
+      subscribed = true;
 
-    await billing.navigate();
-    await billing.openPortal();
-    await portal.cancelSubscription();
-    await expect(portal.cancellationNotice).toBeVisible({ timeout: 15_000 });
-    await portal.dismissFeedbackSurvey();
+      await authenticatedPage.waitForURL(/\/billing\?success=true/, { timeout: 90_000 });
+      await expect
+        .poll(
+          async () => {
+            await authenticatedPage.goto('/billing');
+            await expect(billing.currentPlanLabel).toBeVisible({ timeout: 15_000 });
+            return await billing.plusPlanDescription.isVisible().catch(() => false);
+          },
+          { timeout: 240_000, intervals: [3_000, 8_000] },
+        )
+        .toBe(true);
 
-    if (await portal.returnToAppLink.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await portal.returnToAppLink.click();
-    } else {
-      await authenticatedPage.goto('/billing');
+      await billing.navigate();
+      await billing.openPortal();
+      await portal.cancelSubscription();
+      cancelled = true;
+      await expect(portal.cancellationNotice).toBeVisible({ timeout: 15_000 });
+      await portal.dismissFeedbackSurvey();
+
+      if (await portal.returnToAppLink.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await portal.returnToAppLink.click();
+      } else {
+        await authenticatedPage.goto('/billing');
+      }
+      await authenticatedPage.waitForURL(/\/billing/, { timeout: 30_000 });
+    } finally {
+      if (subscribed && !cancelled) {
+        try {
+          await billing.navigate();
+          await billing.openPortal();
+          await portal.cancelSubscription();
+          await portal.dismissFeedbackSurvey();
+        } catch (cleanupError) {
+          console.warn(`Stripe-Cleanup im finally fehlgeschlagen: ${cleanupError}`);
+        }
+      }
     }
-    await authenticatedPage.waitForURL(/\/billing/, { timeout: 30_000 });
   });
 });
