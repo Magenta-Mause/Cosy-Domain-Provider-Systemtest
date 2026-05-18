@@ -7,6 +7,7 @@
     "test:staging": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net playwright test --workers=1",
     "test:staging:admin": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net RUN_ADMIN_TESTS=1 SKIP_APP_TEST_USER_SETUP=1 playwright test tests/specs/admin.spec.ts --workers=1",
     "test:staging:mail": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net RUN_MAIL_FLOW_TESTS=1 playwright test --workers=1",
+    "test:staging:mail-only": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net RUN_MAIL_FLOW_TESTS=1 playwright test tests/specs/auth-email.spec.ts tests/specs/password-reset.spec.ts --workers=1",
     "test:staging:mfa-ui": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net RUN_MFA_UI_TESTS=1 playwright test tests/specs/mfa-ui.spec.ts --workers=1",
     "test:staging:stripe": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net RUN_STRIPE_TESTS=1 playwright test tests/specs/billing-stripe.spec.ts --workers=1",
     "test:headed": "playwright test --headed",

@@ -11,9 +11,34 @@ concurrency:
 
 jobs:
   test:
-    name: Run Playwright Tests
+    name: ${{ matrix.suite }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: default
+            script: test:staging
+            extra_env: {}
+          - suite: mail
+            script: test:staging:mail-only
+            extra_env:
+              RUN_MAIL_FLOW_TESTS: '1'
+          - suite: mfa-ui
+            script: test:staging:mfa-ui
+            extra_env:
+              RUN_MFA_UI_TESTS: '1'
+          - suite: stripe
+            script: test:staging:stripe
+            extra_env:
+              RUN_STRIPE_TESTS: '1'
+          - suite: admin
+            script: test:staging:admin
+            extra_env:
+              RUN_ADMIN_TESTS: '1'
+              SKIP_APP_TEST_USER_SETUP: '1'
 
     env:
       BASE_URL: ${{ vars.BASE_URL || 'https://staging.domain-provider.cosy-hosting.net' }}
@@ -21,10 +46,6 @@ jobs:
       STAGING_AUTH_PASSWORD: ${{ secrets.STAGING_AUTH_PASSWORD }}
       MAIL_SERVICE_API_KEY: ${{ secrets.MAIL_SERVICE_API_KEY }}
       ADMIN_PORTAL_API_KEY: ${{ secrets.ADMIN_PORTAL_API_KEY }}
-      RUN_MAIL_FLOW_TESTS: '1'
-      RUN_MFA_UI_TESTS: '1'
-      RUN_STRIPE_TESTS: '1'
-      RUN_ADMIN_TESTS: '1'
 
     steps:
       - uses: actions/checkout@v4
@@ -40,14 +61,15 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Run Playwright tests
-        run: npm run test:staging
+      - name: Run ${{ matrix.suite }} suite
+        env: ${{ matrix.extra_env }}
+        run: npm run ${{ matrix.script }}
 
       - name: Upload HTML report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.suite }}
           path: playwright-report/
           retention-days: 7
 
@@ -55,6 +77,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-${{ matrix.suite }}
           path: test-results/
           retention-days: 7
