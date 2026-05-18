@@ -2,6 +2,7 @@ import { chromium, request } from '@playwright/test';
 import * as fs from 'fs';
 import { deleteOrphanPlaywrightUsers, getAdminKey } from './helpers/admin-cleanup';
 import { processCleanupQueue } from './helpers/cleanup';
+import { setupFixtureTestUser } from './helpers/fixture-user';
 import { MailService } from './helpers/mail-service';
 import {
   APP_USER_STATE_PATH,
@@ -55,6 +56,11 @@ export default async function globalSetup() {
       error: 'App-Testuser-Setup wurde per SKIP_APP_TEST_USER_SETUP=1 übersprungen.',
     });
     clearAuthenticatedAppState();
+    return;
+  }
+  if (process.env.USE_FIXTURE_USER === '1') {
+    clearAuthenticatedAppState();
+    await setupFixtureTestUser(baseURL);
     return;
   }
   await setupRuntimeTestUser(baseURL);
