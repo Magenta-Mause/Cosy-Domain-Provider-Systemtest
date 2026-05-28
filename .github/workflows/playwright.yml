@@ -26,12 +26,7 @@ jobs:
         include:
           - suite: default
             script: test:staging
-            extra_env:
-              USE_FIXTURE_USER: ${{ vars.USE_FIXTURE_USERS }}
-              FIXTURE_USER_EMAIL: ${{ secrets.FIXTURE_USER_DEFAULT_EMAIL }}
-              FIXTURE_USER_USERNAME: ${{ secrets.FIXTURE_USER_DEFAULT_USERNAME }}
-              FIXTURE_USER_PASSWORD: ${{ secrets.FIXTURE_USER_DEFAULT_PASSWORD }}
-              FIXTURE_USER_MFA_SECRET: ${{ secrets.FIXTURE_USER_DEFAULT_MFA_SECRET }}
+            extra_env: {}
           - suite: mail
             script: test:staging:mail-only
             extra_env:
@@ -44,11 +39,6 @@ jobs:
             script: test:staging:stripe
             extra_env:
               RUN_STRIPE_TESTS: '1'
-              USE_FIXTURE_USER: ${{ vars.USE_FIXTURE_USERS }}
-              FIXTURE_USER_EMAIL: ${{ secrets.FIXTURE_USER_STRIPE_EMAIL }}
-              FIXTURE_USER_USERNAME: ${{ secrets.FIXTURE_USER_STRIPE_USERNAME }}
-              FIXTURE_USER_PASSWORD: ${{ secrets.FIXTURE_USER_STRIPE_PASSWORD }}
-              FIXTURE_USER_MFA_SECRET: ${{ secrets.FIXTURE_USER_STRIPE_MFA_SECRET }}
           - suite: admin
             script: test:staging:admin
             extra_env:
@@ -62,6 +52,15 @@ jobs:
       MAIL_SERVICE_API_KEY: ${{ secrets.MAIL_SERVICE_API_KEY }}
       ADMIN_PORTAL_API_KEY: ${{ secrets.ADMIN_PORTAL_API_KEY }}
       TEST_USER_SETUP_MAIL_TIMEOUT_MS: '120000'
+      # Fixture-User-Credentials nur für default/stripe — leerer String für alle anderen
+      # Suites, damit setupFixtureTestUser dort gar nicht erst aufgerufen wird.
+      # secrets.* darf nicht in matrix.include benutzt werden (GitHub-Actions-Limit),
+      # deshalb hier auf Job-Level mit matrix.suite-Conditional.
+      USE_FIXTURE_USER: ${{ (matrix.suite == 'default' || matrix.suite == 'stripe') && vars.USE_FIXTURE_USERS || '' }}
+      FIXTURE_USER_EMAIL: ${{ (matrix.suite == 'default' && secrets.FIXTURE_USER_DEFAULT_EMAIL) || (matrix.suite == 'stripe' && secrets.FIXTURE_USER_STRIPE_EMAIL) || '' }}
+      FIXTURE_USER_USERNAME: ${{ (matrix.suite == 'default' && secrets.FIXTURE_USER_DEFAULT_USERNAME) || (matrix.suite == 'stripe' && secrets.FIXTURE_USER_STRIPE_USERNAME) || '' }}
+      FIXTURE_USER_PASSWORD: ${{ (matrix.suite == 'default' && secrets.FIXTURE_USER_DEFAULT_PASSWORD) || (matrix.suite == 'stripe' && secrets.FIXTURE_USER_STRIPE_PASSWORD) || '' }}
+      FIXTURE_USER_MFA_SECRET: ${{ (matrix.suite == 'default' && secrets.FIXTURE_USER_DEFAULT_MFA_SECRET) || (matrix.suite == 'stripe' && secrets.FIXTURE_USER_STRIPE_MFA_SECRET) || '' }}
 
     steps:
       - uses: actions/checkout@v4
