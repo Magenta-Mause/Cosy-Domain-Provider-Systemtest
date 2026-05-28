@@ -38,7 +38,7 @@ test.describe('MFA-UI-Flow', () => {
   }
 
   test('MFA wird im Browser eingerichtet und beim Login abgefragt', async ({ page, browser }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(240_000);
 
     const email = generateTestEmail();
     const password = 'Test1234!';
@@ -55,7 +55,7 @@ test.describe('MFA-UI-Flow', () => {
       recipient: email,
       subjectContains: 'Verify Your Account',
       after: registeredAt,
-      timeoutMs: 45_000,
+      timeoutMs: 120_000,
     });
 
     const verify = new VerifyPage(page);

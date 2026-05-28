@@ -18,6 +18,10 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
     'MAIL_SERVICE_API_KEY nicht gesetzt — Mail-Tests übersprungen',
   );
 
+  // Mail-Zustellung aus CI dauert teils 30-60s, deshalb großzügiger Test-Budget.
+  // Test 2 macht zwei Mail-Waits hintereinander — braucht Platz für beide.
+  test.describe.configure({ timeout: 240_000 });
+
   async function registerViaApi(
     page: import('@playwright/test').Page,
     opts: { email: string; username: string; password: string },
@@ -52,7 +56,7 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
       recipient: email,
       subjectContains: 'Verify Your Account',
       after: startedAt,
-      timeoutMs: 30_000,
+      timeoutMs: 90_000,
     });
 
     const token = mail.extractVerifyToken(verifyMail);
@@ -79,7 +83,7 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
       recipient: email,
       subjectContains: 'Verify Your Account',
       after: startedAt,
-      timeoutMs: 30_000,
+      timeoutMs: 90_000,
     });
 
     expect(mail.extractVerifyToken(verifyMail)).toMatch(/^[A-Z0-9]{6}$/);
@@ -92,7 +96,7 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
       recipient: email,
       subjectContains: 'Verify Your Account',
       after: resendStartedAt,
-      timeoutMs: 30_000,
+      timeoutMs: 90_000,
     });
     const token = mail.extractVerifyToken(resendMail);
     await verify.verifyWithCode(token);
