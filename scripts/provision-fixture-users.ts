@@ -18,8 +18,13 @@
  *       FIXTURE_USER_DEFAULT_EMAIL, FIXTURE_USER_DEFAULT_USERNAME,
  *       FIXTURE_USER_DEFAULT_PASSWORD, FIXTURE_USER_DEFAULT_MFA_SECRET.
  */
-import { request } from '@playwright/test';
+import { chromium, request } from '@playwright/test';
 import * as crypto from 'crypto';
+import {
+  deleteUserAsAdmin,
+  findAdminUserByEmail,
+  getAdminKey,
+} from '../tests/helpers/admin-cleanup';
 import { MailService } from '../tests/helpers/mail-service';
 import { ensureAuthDir, STAGING_STATE_PATH } from '../tests/helpers/runtime-test-user';
 import { setupStagingBarrier } from '../tests/helpers/staging-auth';
@@ -80,6 +85,23 @@ async function provisionRole(baseURL: string, role: string): Promise<Provisioned
     };
   }
 
+  // Orphan-Cleanup: wenn ein User mit dieser Email aus einem abgebrochenen
+  // Vorlauf existiert (z.B. registriert aber nicht verifiziert), via Admin-API
+  // löschen damit die Registrierung sauber durchläuft.
+  const adminKey = getAdminKey();
+  if (adminKey) {
+    const existing = await findAdminUserByEmail(baseURL, adminKey, email);
+    if (existing) {
+      console.log(`  ↻ Lösche Orphan-User aus vorherigem Lauf (${email}) ...`);
+      await deleteUserAsAdmin(baseURL, existing.uuid, adminKey);
+    }
+  } else {
+    console.warn(
+      '  ⚠ ADMIN_PORTAL_API_KEY nicht gesetzt — Orphan-Cleanup übersprungen. ' +
+        'Falls die Registrierung an "email already exists" scheitert, manuell aufräumen.',
+    );
+  }
+
   const ctx = await request.newContext({
     baseURL,
     storageState: buildApiStorageState(baseURL),
@@ -119,9 +141,18 @@ async function provisionRole(baseURL: string, role: string): Promise<Provisioned
     });
     const token = mail.extractVerifyToken(verifyMail);
 
-    const verifyRes = await ctx.post(`/api/v1/auth/verify?token=${token}`);
-    if (!verifyRes.ok()) {
-      throw new Error(`Account-Verifizierung fehlgeschlagen: ${verifyRes.status()} ${await verifyRes.text()}`);
+    const browser = await chromium.launch({ headless: true });
+    const verifyCtx = await browser.newContext({
+      baseURL,
+      storageState: buildApiStorageState(baseURL),
+    });
+    const verifyPage = await verifyCtx.newPage();
+    try {
+      await verifyPage.goto(`/verify?token=${token}`);
+      await verifyPage.getByTestId('verify-success-message').waitFor({ timeout: 30_000 });
+    } finally {
+      await verifyCtx.close();
+      await browser.close();
     }
 
     const setupRes = await ctx.post('/api/v1/auth/mfa/setup', {
