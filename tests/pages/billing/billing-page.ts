@@ -36,11 +36,21 @@ export class BillingPage {
   }
 
   async openCheckout() {
+    await this.portalButton
+      .filter({ hasText: /upgrade to cosy\+|auf cosy\+ upgraden/i })
+      .waitFor({ state: 'visible', timeout: 30_000 });
     await this.portalButton.click();
     await this.page.waitForURL(/checkout\.stripe\.com/);
   }
 
   async openPortal() {
+    // Derselbe Button öffnet je nach userTier Checkout (Free) oder Portal (Plus).
+    // Nach goto('/billing') hydratisiert useAuthInformation() asynchron; wenn wir
+    // klicken bevor der Tier-Refetch durch ist, landet der Klick im Checkout-Branch
+    // und waitForURL läuft ins Timeout. Auf den "Manage"-Label warten = Tier=PLUS bestätigt.
+    await this.portalButton
+      .filter({ hasText: /manage subscription|abonnement verwalten/i })
+      .waitFor({ state: 'visible', timeout: 30_000 });
     await this.portalButton.click();
     await this.page.waitForURL(/billing\.stripe\.com/, { timeout: 30_000 });
   }
