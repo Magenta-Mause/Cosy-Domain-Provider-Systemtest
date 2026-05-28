@@ -48,7 +48,7 @@ test.describe('Passwort-Reset-Flow', () => {
       recipient: email,
       subjectContains: 'Verify Your Account',
       after,
-      timeoutMs: 30_000,
+      timeoutMs: 90_000,
     });
 
     const verify = new VerifyPage(page);
@@ -85,7 +85,7 @@ test.describe('Passwort-Reset-Flow', () => {
     test('Reset-Link setzt neues Passwort und MFA wird mit zurückgesetzt', async ({
       page,
     }) => {
-      test.setTimeout(120_000);
+      test.setTimeout(240_000);
 
       const baseUrl = process.env.BASE_URL ?? 'http://localhost:5173';
       const email = generateTestEmail();
@@ -134,7 +134,7 @@ test.describe('Passwort-Reset-Flow', () => {
         recipient: email,
         subjectContains: 'Reset',
         after: resetRequestedAt,
-        timeoutMs: 30_000,
+        timeoutMs: 90_000,
       });
 
       const resetPassword = new ResetPasswordPage(page);

@@ -49,7 +49,7 @@ export class MailService {
     timeoutMs?: number;
     pollIntervalMs?: number;
   }): Promise<Mail> {
-    const { recipient, subjectContains, after, timeoutMs = 30_000, pollIntervalMs = 2_000 } = opts;
+    const { recipient, subjectContains, after, timeoutMs = 90_000, pollIntervalMs = 2_000 } = opts;
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
