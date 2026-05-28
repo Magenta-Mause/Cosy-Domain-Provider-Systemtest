@@ -9,6 +9,10 @@ concurrency:
   group: playwright-staging
   cancel-in-progress: false
 
+# Fixture-User scharfschalten: Repo-Variable USE_FIXTURE_USERS=1 setzen, NACHDEM die
+# FIXTURE_USER_DEFAULT_*/FIXTURE_USER_STRIPE_*-Secrets via provision:fixture-users
+# angelegt wurden. Solange die Variable nicht gesetzt ist, laufen default/stripe mit
+# dem bisherigen ephemeren User-Flow.
 jobs:
   test:
     name: ${{ matrix.suite }}
@@ -22,7 +26,12 @@ jobs:
         include:
           - suite: default
             script: test:staging
-            extra_env: {}
+            extra_env:
+              USE_FIXTURE_USER: ${{ vars.USE_FIXTURE_USERS }}
+              FIXTURE_USER_EMAIL: ${{ secrets.FIXTURE_USER_DEFAULT_EMAIL }}
+              FIXTURE_USER_USERNAME: ${{ secrets.FIXTURE_USER_DEFAULT_USERNAME }}
+              FIXTURE_USER_PASSWORD: ${{ secrets.FIXTURE_USER_DEFAULT_PASSWORD }}
+              FIXTURE_USER_MFA_SECRET: ${{ secrets.FIXTURE_USER_DEFAULT_MFA_SECRET }}
           - suite: mail
             script: test:staging:mail-only
             extra_env:
@@ -35,6 +44,11 @@ jobs:
             script: test:staging:stripe
             extra_env:
               RUN_STRIPE_TESTS: '1'
+              USE_FIXTURE_USER: ${{ vars.USE_FIXTURE_USERS }}
+              FIXTURE_USER_EMAIL: ${{ secrets.FIXTURE_USER_STRIPE_EMAIL }}
+              FIXTURE_USER_USERNAME: ${{ secrets.FIXTURE_USER_STRIPE_USERNAME }}
+              FIXTURE_USER_PASSWORD: ${{ secrets.FIXTURE_USER_STRIPE_PASSWORD }}
+              FIXTURE_USER_MFA_SECRET: ${{ secrets.FIXTURE_USER_STRIPE_MFA_SECRET }}
           - suite: admin
             script: test:staging:admin
             extra_env:
