@@ -7,6 +7,11 @@ test.describe('Stripe-Abonnement-Flow', () => {
     'Stripe-Tests laufen nur mit RUN_STRIPE_TESTS=1.',
   );
 
+  // beforeEach kann beim Auto-Heal (Subscription kündigen) länger brauchen als die
+  // Playwright-Default 30s — Stripe-Portal lädt teilweise zäh. Test-setTimeout im
+  // Body kommt zu spät (Hooks laufen davor), deshalb hier auf describe-Ebene.
+  test.describe.configure({ timeout: 420_000 });
+
   test.beforeEach(async ({ authenticatedPage }) => {
     // Auto-heal: wenn der Fixture-User aus einem abgebrochenen Vorlauf noch auf
     // Cosy+ steht, hier zurück auf Free zwingen damit der eigentliche Test sauber
@@ -16,7 +21,7 @@ test.describe('Stripe-Abonnement-Flow', () => {
     const portal = new StripePortalPage(authenticatedPage);
 
     await billing.navigate();
-    await expect(billing.currentPlanLabel).toBeVisible({ timeout: 30_000 });
+    await expect(billing.currentPlanLabel).toBeVisible({ timeout: 15_000 });
 
     if (await billing.plusBadge.isVisible({ timeout: 2_000 }).catch(() => false)) {
       await billing.openPortal();
@@ -31,8 +36,6 @@ test.describe('Stripe-Abonnement-Flow', () => {
     authenticatedPage,
     appTestUser,
   }) => {
-    test.setTimeout(420_000);
-
     const billing = new BillingPage(authenticatedPage);
     const checkout = new StripeCheckoutPage(authenticatedPage);
     const portal = new StripePortalPage(authenticatedPage);
