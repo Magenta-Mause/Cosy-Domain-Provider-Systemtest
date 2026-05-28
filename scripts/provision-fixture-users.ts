@@ -118,6 +118,7 @@ async function provisionRole(baseURL: string, role: string): Promise<Provisioned
         `Registrierung von ${email} fehlgeschlagen: ${registerRes.status()} ${await registerRes.text()}`,
       );
     }
+    const postRegisterState = await ctx.storageState();
 
     const tokenRes = await ctx.get('/api/v1/auth/token');
     if (!tokenRes.ok()) {
@@ -144,12 +145,23 @@ async function provisionRole(baseURL: string, role: string): Promise<Provisioned
     const browser = await chromium.launch({ headless: true });
     const verifyCtx = await browser.newContext({
       baseURL,
-      storageState: buildApiStorageState(baseURL),
+      storageState: postRegisterState,
     });
     const verifyPage = await verifyCtx.newPage();
     try {
       await verifyPage.goto(`/verify?token=${token}`);
       await verifyPage.getByTestId('verify-success-message').waitFor({ timeout: 30_000 });
+    } catch (verifyError) {
+      const bodyText = await verifyPage
+        .locator('body')
+        .innerText({ timeout: 5_000 })
+        .catch(() => '');
+      const details = bodyText.trim().replace(/\s+/g, ' ').slice(0, 500);
+      throw new Error(
+        `Verify-Page hat verify-success-message nicht angezeigt. URL: ${verifyPage.url()}. Body: ${details}. Ursprung: ${
+          verifyError instanceof Error ? verifyError.message : String(verifyError)
+        }`,
+      );
     } finally {
       await verifyCtx.close();
       await browser.close();
