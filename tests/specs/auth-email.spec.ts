@@ -8,10 +8,6 @@ import {
 } from '@helpers/index';
 
 test.describe('E-Mail-Verifizierungs-Flow', () => {
-  // Temporär in CI übersprungen — Mail-Flow-Suite schlägt aktuell instabil fehl
-  // (Mail-Zustellung/Latenz). TODO: reaktivieren, sobald der Mail-Flow stabil läuft.
-  test.skip(true, 'Mail-Flow-Suite temporär geskippt — schlägt aktuell in CI fehl.');
-
   test.skip(
     process.env.RUN_MAIL_FLOW_TESTS !== '1',
     'Mail-Flow-Tests laufen nur mit RUN_MAIL_FLOW_TESTS=1, damit der Default-Staging-Run nur den Setup-User per Mail registriert.',
@@ -41,6 +37,17 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
       password: opts.password,
       source: 'auth-email.spec.ts',
     });
+
+    // Die Registrierung erzeugt nur den Verifizierungs-Token, sendet aber keine Mail
+    // (UserVerificationService.issueVerificationToken). Die Verify-Mail wird erst über
+    // resend-verification verschickt — genau wie der echte /verify-Flow im Frontend.
+    const tokenRes = await page.request.get(`${baseUrl}/api/v1/auth/token`);
+    expect(tokenRes.ok()).toBeTruthy();
+    const identityToken = await tokenRes.text();
+    const resendRes = await page.request.post(`${baseUrl}/api/v1/auth/resend-verification`, {
+      headers: { Authorization: `Bearer ${identityToken}` },
+    });
+    expect(resendRes.ok()).toBeTruthy();
   }
 
   test('Registrierung löst Verifizierungsmail aus, Token-Link verifiziert den Account', async ({

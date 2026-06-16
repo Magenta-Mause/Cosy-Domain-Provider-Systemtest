@@ -29,6 +29,11 @@ export class TwoFactorSetupPage {
 
   async confirm(code: string) {
     await this.totpInput.fill(code);
-    await this.confirmBtn.click();
+    // Das OTP-Feld submittet automatisch, sobald 6 Ziffern eingegeben sind
+    // (useMfaSetupLogic-useEffect) und navigiert weiter. Ein erzwungener
+    // Button-Klick würde mit dieser Navigation racen (Button ist dann
+    // "Verifying..."/detached). Nur als Fallback klicken, falls der Auto-Submit
+    // (z.B. nach einem künftigen Refactor) nicht greift.
+    await this.confirmBtn.click({ timeout: 3_000 }).catch(() => undefined);
   }
 }

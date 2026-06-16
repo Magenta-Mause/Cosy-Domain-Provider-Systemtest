@@ -10,10 +10,6 @@ import {
 } from '@helpers/index';
 
 test.describe('MFA-UI-Flow', () => {
-  // Temporär in CI übersprungen — MFA-UI-Suite schlägt aktuell instabil fehl
-  // (MFA-Setup/Login-Flow). TODO: reaktivieren, sobald der Flow stabil läuft.
-  test.skip(true, 'MFA-UI-Suite temporär geskippt — schlägt aktuell in CI fehl.');
-
   test.skip(
     process.env.RUN_MFA_UI_TESTS !== '1',
     'MFA-UI-Test läuft nur mit RUN_MFA_UI_TESTS=1, weil er eine zusätzliche Verifizierungsmail erzeugt.',
@@ -39,6 +35,16 @@ test.describe('MFA-UI-Flow', () => {
       password: opts.password,
       source: 'mfa-ui.spec.ts',
     });
+
+    // Registrierung erzeugt nur den Token, keine Mail — resend-verification löst die
+    // Verify-Mail aus (siehe UserVerificationService.issueVerificationToken).
+    const tokenRes = await page.request.get(`${baseUrl}/api/v1/auth/token`);
+    expect(tokenRes.ok()).toBeTruthy();
+    const identityToken = await tokenRes.text();
+    const resendRes = await page.request.post(`${baseUrl}/api/v1/auth/resend-verification`, {
+      headers: { Authorization: `Bearer ${identityToken}` },
+    });
+    expect(resendRes.ok()).toBeTruthy();
   }
 
   test('MFA wird im Browser eingerichtet und beim Login abgefragt', async ({ page, browser }) => {

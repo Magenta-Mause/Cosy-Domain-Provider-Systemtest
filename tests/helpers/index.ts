@@ -35,4 +35,42 @@ export async function enableCaptchaBypass(context: BrowserContext): Promise<void
       path: '/',
     },
   ]);
+  await stubTurnstile(context);
+}
+
+/**
+ * Stubbt das Cloudflare-Turnstile-Widget im Browser. Der echte (Production-)Sitekey
+ * löst headless nicht, wodurch der Login-/Register-Submit dauerhaft `disabled` bliebe.
+ * Der Stub liefert sofort das Token "BYPASS", das der Backend-CaptchaService bei
+ * gesetztem CAPTCHA_BYPASS-Cookie akzeptiert — so wird UI-Auth headless testbar.
+ */
+async function stubTurnstile(context: BrowserContext): Promise<void> {
+  await context.route(/challenges\.cloudflare\.com\/turnstile\/.*\/api\.js.*/, async (route) => {
+    const onload =
+      new URL(route.request().url()).searchParams.get('onload') ?? 'onloadTurnstileCallback';
+    const body = `
+      window.turnstile = {
+        render: function (_el, opts) {
+          setTimeout(function () {
+            if (opts && typeof opts.callback === 'function') opts.callback('BYPASS');
+          }, 0);
+          return 'turnstile-stub-widget';
+        },
+        execute: function (_el, opts) {
+          if (opts && typeof opts.callback === 'function') opts.callback('BYPASS');
+        },
+        reset: function () {},
+        remove: function () {},
+        getResponse: function () { return 'BYPASS'; }
+      };
+      if (typeof window[${JSON.stringify(onload)}] === 'function') {
+        window[${JSON.stringify(onload)}]();
+      }
+    `;
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/javascript; charset=utf-8',
+      body,
+    });
+  });
 }

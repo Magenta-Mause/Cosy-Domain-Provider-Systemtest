@@ -14,6 +14,7 @@ import {
   recordCleanupUser,
   updateCleanupUser,
 } from '@helpers/index';
+import { readStagingStorageState } from '@helpers/staging-auth';
 
 test.describe('Passwort-Reset-Flow', () => {
   async function registerViaApi(
@@ -72,10 +73,6 @@ test.describe('Passwort-Reset-Flow', () => {
   });
 
   test.describe('mit Testmailbox', () => {
-    // Temporär in CI übersprungen — Mail-Flow-Tests schlagen aktuell instabil fehl
-    // (Mail-Zustellung/Latenz). TODO: reaktivieren, sobald der Mail-Flow stabil läuft.
-    test.skip(true, 'Mail-Flow-Tests temporär geskippt — schlagen aktuell in CI fehl.');
-
     test.skip(
       process.env.RUN_MAIL_FLOW_TESTS !== '1',
       'Mail-Flow-Tests laufen nur mit RUN_MAIL_FLOW_TESTS=1, damit der Default-Staging-Run nur den Setup-User per Mail registriert.',
@@ -124,7 +121,11 @@ test.describe('Passwort-Reset-Flow', () => {
       );
       expect(initialConfirmRes.ok()).toBeTruthy();
 
+      // App-Session ausloggen, aber den Staging-Barrier-Cookie wieder setzen —
+      // clearCookies() entfernt sonst auch die Staging-Auth und /forgot-password
+      // landet hinter der Staging-Sperre (lokal kein Effekt, da leerer State).
       await page.context().clearCookies();
+      await page.context().addCookies(readStagingStorageState().cookies);
       await enableCaptchaBypass(page.context());
 
       const forgotPassword = new ForgotPasswordPage(page);

@@ -2,10 +2,6 @@ import { test, expect } from '../fixtures';
 import { BillingPage, StripeCheckoutPage, StripePortalPage } from '@pages/index';
 
 test.describe('Stripe-Abonnement-Flow', () => {
-  // Temporär in CI übersprungen — Stripe-Suite schlägt aktuell instabil fehl
-  // (Checkout/Portal-Flow). TODO: reaktivieren, sobald der Flow stabil läuft.
-  test.skip(true, 'Stripe-Suite temporär geskippt — schlägt aktuell in CI fehl.');
-
   test.skip(
     process.env.RUN_STRIPE_TESTS !== '1',
     'Stripe-Tests laufen nur mit RUN_STRIPE_TESTS=1.',
@@ -27,12 +23,12 @@ test.describe('Stripe-Abonnement-Flow', () => {
     await billing.navigate();
     await expect(billing.currentPlanLabel).toBeVisible({ timeout: 15_000 });
 
-    if (await billing.plusBadge.isVisible({ timeout: 2_000 }).catch(() => false)) {
+    if (await billing.isPlus()) {
       await billing.openPortal();
       await portal.cancelSubscription();
       await portal.dismissFeedbackSurvey();
       await authenticatedPage.goto('/billing');
-      await expect(billing.freeBadge).toBeVisible({ timeout: 30_000 });
+      await expect(billing.upgradeButton).toBeVisible({ timeout: 30_000 });
     }
   });
 
