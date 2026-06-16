@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cosy-systemtest
+
+# secret.example.yaml ist bewusst NICHT gelistet — es ist nur eine Vorlage und
+# darf nie mit echten Werten ins Cluster/Git. Das Secret wird einmalig manuell
+# angelegt (siehe deploy/README.md).
+resources:
+  - cronjob.yaml

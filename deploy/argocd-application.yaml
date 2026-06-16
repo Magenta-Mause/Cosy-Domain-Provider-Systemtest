@@ -1,0 +1,26 @@
+# Argo-CD-Application für DEIN Cluster. Einmalig anwenden:
+#   kubectl apply -f deploy/argocd-application.yaml
+#
+# Danach synct dein Argo den deploy/-Ordner dieses Repos automatisch und der
+# CronJob läuft in deinem Cluster. Das cosy-systemtest-secrets-Secret muss vorher
+# im Namespace cosy-systemtest existieren (siehe deploy/secret.example.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cosy-systemtest
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Magenta-Mause/Cosy-Domain-Provider-Systemtest.git
+    targetRevision: main
+    path: deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cosy-systemtest
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

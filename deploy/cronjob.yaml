@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cosy-systemtest
+  labels:
+    app: cosy-systemtest
+spec:
+  # Täglich 02:00 UTC. Ersetzt die bisherige GitHub-Actions-Nightly.
+  schedule: "0 2 * * *"
+  # Kein paralleler Lauf, falls einer mal überzieht.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app: cosy-systemtest
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: systemtest
+              image: ghcr.io/magenta-mause/cosy-domain-provider-systemtest:latest
+              imagePullPolicy: Always
+              env:
+                - name: BASE_URL
+                  value: "https://staging.domain-provider.cosy-hosting.net"
+                # PHASE 2 (Grafana): einkommentieren, sobald der Pushgateway steht.
+                # Ohne diese Variable läuft der Job als reiner Test-Durchlauf (Phase 1):
+                # Suites laufen, Ergebnisse stehen im Log, kein Push -> Job bleibt grün.
+                # Pushgateway = Deployment-Repo base/pushgateway (Janne's Cluster).
+                # - name: PUSHGATEWAY_URL
+                #   value: "https://pushgateway.jannekeipert.de"
+              # Credentials + optionale Pushgateway-Basic-Auth aus dem Secret.
+              # Anlegen via deploy/secret.example.yaml (NICHT committen).
+              envFrom:
+                - secretRef:
+                    name: cosy-systemtest-secrets
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1"
+                  memory: "2Gi"
+          # Falls das ghcr-Package privat ist, Pull-Secret anlegen und einkommentieren:
+          # imagePullSecrets:
+          #   - name: ghcr-pull-secret

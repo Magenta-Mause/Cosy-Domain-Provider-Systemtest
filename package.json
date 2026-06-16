@@ -15,7 +15,8 @@
     "test:debug": "playwright test --debug",
     "report": "playwright show-report",
     "cleanup:staging": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net tsx scripts/cleanup-staging.ts",
-    "provision:fixture-users": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net tsx scripts/provision-fixture-users.ts"
+    "provision:fixture-users": "dotenv -e .env.local -- env BASE_URL=https://staging.domain-provider.cosy-hosting.net tsx scripts/provision-fixture-users.ts",
+    "monitor": "dotenv -e .env.local -- tsx scripts/monitor.ts"
   },
   "repository": {
     "type": "git",

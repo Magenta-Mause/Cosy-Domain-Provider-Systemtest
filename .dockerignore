@@ -1,0 +1,10 @@
+node_modules
+.git
+.auth
+test-results
+playwright-report
+monitor-results
+.playwright-mcp
+.idea
+.env.local
+*.log
