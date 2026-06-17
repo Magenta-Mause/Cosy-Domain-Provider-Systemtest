@@ -72,3 +72,34 @@ Unit: *seconds (s)*. Legend: `{{suite}}`.
 Falls du lieber importierst statt Panels einzeln baust — Grafana → Dashboards →
 New → Import → JSON: `docs/grafana-systemtest-dashboard.json`. Beim Import die
 Prometheus-Datasource auswählen.
+
+## Alerts als Grafana-MCP-Prompt
+
+Sobald ein Grafana-MCP-Server (mit Service-Account-Token) verfügbar ist, können
+die zwei Alert-Regeln per Prompt angelegt werden. Prompt zum Einfügen:
+
+> Lege in Grafana (Unified Alerting) zwei Alert-Regeln an. Datasource = die
+> Prometheus-Instanz, die den Pushgateway scraped (`cosy_systemtest_*`-Metriken,
+> Label `job="cosy-systemtest"`). Beide in einen Ordner „Cosy" / Evaluation-Group
+> „systemtests", und an den bestehenden Default-Contact-Point hängen.
+>
+> **Regel 1 — „Systemtest-Suite rot"**
+> - Query A (instant): `cosy_systemtest_suite_success{job="cosy-systemtest"}`
+> - Expression B: Reduce, Function `last`, Input A
+> - Expression C: Threshold, Input B, `IS BELOW 1` — als Alert-Condition
+> - Evaluate every `1m`, pending period `for: 5m`
+> - Labels: `severity=critical`
+> - Summary: `Systemtest-Suite {{ $labels.suite }} ist rot`
+> - Description: `Die nightly E2E-Suite {{ $labels.suite }} (Cosy Domain Provider) ist beim letzten Lauf fehlgeschlagen. Logs: kubectl -n cosy-systemtest logs job/<letzter Job>.`
+> - Hinweis: Query liefert eine Serie pro `suite` → die Regel feuert automatisch
+>   multi-dimensional (eine Instanz je betroffener Suite).
+>
+> **Regel 2 — „Systemtests nicht gelaufen / stale"**
+> - Query A (instant): `time() - cosy_systemtest_last_run_timestamp_seconds{job="cosy-systemtest"}`
+> - Expression B: Reduce `last` von A; Expression C: Threshold `IS ABOVE 93600` (26 h) — Alert-Condition
+> - Evaluate every `5m`, `for: 1h`
+> - „Alert state if no data" = `Alerting` (feuert auch, wenn die Metrik ganz verschwindet — Pushgateway/CronJob tot)
+> - Labels: `severity=warning`
+> - Summary: `Systemtests seit >26h nicht gelaufen — CronJob (Simon-Cluster) oder Pushgateway prüfen.`
+> - Hinweis: Schedule ist täglich 02:00 UTC; 26 h toleriert einen einzelnen
+>   ausgefallenen Lauf, schlägt aber bei zwei Tagen Stille an.
