@@ -9,6 +9,10 @@
       "pluginName": "Prometheus"
     }
   ],
+  "__requires": [
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" }
+  ],
   "title": "Cosy Domain Provider — Systemtests",
   "uid": "cosy-systemtests",
   "tags": ["cosy", "systemtest", "e2e"],
@@ -17,27 +21,53 @@
   "editable": true,
   "time": { "from": "now-7d", "to": "now" },
   "refresh": "5m",
-  "templating": {
-    "list": [
-      {
-        "name": "DS_PROMETHEUS",
-        "label": "Datasource",
-        "type": "datasource",
-        "query": "prometheus",
-        "current": {}
-      }
-    ]
-  },
+  "templating": { "list": [] },
   "panels": [
+    {
+      "type": "stat",
+      "title": "Gesamt-Status (alle Suites)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "cosy_systemtest_run_success{job=\"cosy-systemtest\"}",
+          "legendFormat": "run",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "textMode": "value_and_name",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "ROT", "color": "red" } } },
+            { "type": "value", "options": { "1": { "text": "GRÜN", "color": "green" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
     {
       "type": "stat",
       "title": "Suite-Status",
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "gridPos": { "h": 6, "w": 16, "x": 0, "y": 0 },
+      "gridPos": { "h": 6, "w": 10, "x": 6, "y": 0 },
       "targets": [
         {
           "refId": "A",
-          "expr": "cosy_systemtest_suite_success",
+          "expr": "cosy_systemtest_suite_success{job=\"cosy-systemtest\"}",
           "legendFormat": "{{suite}}",
           "instant": true
         }
@@ -73,7 +103,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "time() - cosy_systemtest_last_run_timestamp_seconds",
+          "expr": "time() - cosy_systemtest_last_run_timestamp_seconds{job=\"cosy-systemtest\"}",
           "legendFormat": "seit letztem Lauf",
           "instant": true
         }
@@ -103,9 +133,9 @@
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
       "targets": [
-        { "refId": "A", "expr": "cosy_systemtest_suite_tests_passed", "legendFormat": "passed {{suite}}", "instant": true },
-        { "refId": "B", "expr": "cosy_systemtest_suite_tests_failed", "legendFormat": "failed {{suite}}", "instant": true },
-        { "refId": "C", "expr": "cosy_systemtest_suite_tests_skipped", "legendFormat": "skipped {{suite}}", "instant": true }
+        { "refId": "A", "expr": "cosy_systemtest_suite_tests_passed{job=\"cosy-systemtest\"}", "legendFormat": "passed {{suite}}", "instant": true },
+        { "refId": "B", "expr": "cosy_systemtest_suite_tests_failed{job=\"cosy-systemtest\"}", "legendFormat": "failed {{suite}}", "instant": true },
+        { "refId": "C", "expr": "cosy_systemtest_suite_tests_skipped{job=\"cosy-systemtest\"}", "legendFormat": "skipped {{suite}}", "instant": true }
       ],
       "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } },
       "fieldConfig": { "defaults": { "min": 0 }, "overrides": [] }
@@ -116,7 +146,7 @@
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
       "targets": [
-        { "refId": "A", "expr": "cosy_systemtest_suite_duration_seconds", "legendFormat": "{{suite}}" }
+        { "refId": "A", "expr": "cosy_systemtest_suite_duration_seconds{job=\"cosy-systemtest\"}", "legendFormat": "{{suite}}" }
       ],
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] }
     }
