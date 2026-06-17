@@ -21,7 +21,11 @@ Prometheus scraped den Pushgateway, hier kommen die Panels + Alerts.
 | `cosy_systemtest_run_success` | – | 1 = alle Suites grün |
 | `cosy_systemtest_last_run_timestamp_seconds` | – | Unix-Zeit des letzten Laufs |
 
-`suite` ∈ `default, mail, mfa-ui, stripe, admin`.
+`suite` ∈ `default, mail, mfa-ui, stripe, admin, external`. Jede Suite läuft genau
+ihre Specs (keine Überlappung) → `..._tests_skipped` zeigt nur noch **echte** Skips,
+nicht mehr die opt-in Specs anderer Suites. Die `external`-Suite prüft die externen
+Integrationen (OAuth Google/GitHub/Discord, Cloudflare Turnstile), die sonst kein
+funktionaler Test berührt — schlägt an, wenn eine externe Abhängigkeit kaputtgeht.
 
 ## Panels (neue Row "Systemtests" ins bestehende Dashboard)
 

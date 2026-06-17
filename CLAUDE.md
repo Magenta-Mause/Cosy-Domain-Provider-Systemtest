@@ -6,11 +6,13 @@ Playwright end-to-end tests for the `../Cosy-Domain-Provider-Frontend` (React SP
 
 ```bash
 npm test                # Run all tests headless (Chromium)
-npm run test:staging    # Run default staging suite with one worker
+npm run test:staging    # Run ALL staging specs (opt-in specs self-skip ohne RUN_*-Flag)
+npm run test:staging:core # Nur die immer-laufenden Core-Specs (= Monitor-Suite "default", 0 skips)
 npm run test:staging:admin # Run Admin Portal smoke tests
 npm run test:staging:mail # Run staging with opt-in mail-flow tests
 npm run test:staging:mfa-ui # Run visible MFA setup/login UI test
 npm run test:staging:stripe # Run Stripe Checkout subscription test
+npm run test:staging:external # OAuth- + Turnstile-Health gegen externe Provider
 npm run test:headed     # Run with visible browser
 npm run test:ui         # Interactive Playwright UI (watch mode)
 npm run test:debug      # Step-through debugger
@@ -69,6 +71,7 @@ tests/
 - **Cleanup:** users registered by setup/specs are recorded in `.auth/cleanup-users.json` and deleted in `globalTeardown`.
 - **Page objects are grouped by feature area** under `tests/pages/{admin,auth,billing,domains,public}`.
 - **Specs should import page objects from `@pages/index`** unless a test explicitly needs a local file import.
+- **Monitor-Suiten (`scripts/monitor.ts`) partitionieren ohne Überlappung:** `default` = `test:staging:core` (immer-laufende Specs), die opt-in Specs (mail/mfa-ui/stripe/admin/external) laufen je in ihrer eigenen Suite über ihr `RUN_*`-Flag. **Neue immer-laufende Spec → in `test:staging:core` eintragen**, sonst läuft sie nicht im nightly Monitor. So bleibt die Grafana-`skipped`-Metrik aussagekräftig (nur echte Skips).
 
 > **Hinweis:** Login und Register sind zweistufig (E-Mail → Passwort/Details).
 > Das Register-Formular (Schritt 2) verwendet **Cloudflare Turnstile** — der Submit-Button bleibt in headless Playwright deaktiviert bis das CAPTCHA-Token vorliegt. End-to-End-Tests für den vollen Registrierungsflow benötigen entweder headed Mode oder einen Turnstile-Bypass.

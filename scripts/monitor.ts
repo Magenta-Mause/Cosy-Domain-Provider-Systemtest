@@ -22,13 +22,17 @@ import * as path from 'node:path';
 
 type SuiteDef = { name: string; script: string };
 
-// Spiegelt die bisherige GitHub-Actions-Matrix.
+// Jede Suite läuft genau die Specs, die zu ihr gehören — keine Überlappung, daher
+// keine "phantom skips" mehr im Dashboard (die `skipped`-Metrik zeigt jetzt nur
+// noch echte Skips). `default` = immer-laufende Core-Specs; die opt-in Specs laufen
+// ausschließlich in ihrer jeweiligen Suite.
 const SUITES: SuiteDef[] = [
-  { name: 'default', script: 'test:staging' },
+  { name: 'default', script: 'test:staging:core' },
   { name: 'mail', script: 'test:staging:mail-only' },
   { name: 'mfa-ui', script: 'test:staging:mfa-ui' },
   { name: 'stripe', script: 'test:staging:stripe' },
   { name: 'admin', script: 'test:staging:admin' },
+  { name: 'external', script: 'test:staging:external' },
 ];
 
 const RESULTS_DIR = path.resolve('monitor-results');
