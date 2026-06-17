@@ -30,12 +30,11 @@ spec:
               env:
                 - name: BASE_URL
                   value: "https://staging.domain-provider.cosy-hosting.net"
-                # PHASE 2 (Grafana): einkommentieren, sobald der Pushgateway steht.
-                # Ohne diese Variable läuft der Job als reiner Test-Durchlauf (Phase 1):
-                # Suites laufen, Ergebnisse stehen im Log, kein Push -> Job bleibt grün.
-                # Pushgateway = Deployment-Repo base/pushgateway (Janne's Cluster).
-                # - name: PUSHGATEWAY_URL
-                #   value: "https://pushgateway.jannekeipert.de"
+                # PHASE 2 aktiv: Metriken gehen an den Pushgateway (Janne's Cluster,
+                # Deployment-Repo base/pushgateway). Basic-Auth-Creds
+                # (PUSHGATEWAY_USERNAME/_PASSWORD) kommen aus cosy-systemtest-secrets.
+                - name: PUSHGATEWAY_URL
+                  value: "https://pushgateway.jannekeipert.de"
               # Credentials + optionale Pushgateway-Basic-Auth aus dem Secret.
               # Anlegen via deploy/secret.example.yaml (NICHT committen).
               envFrom:
