@@ -47,7 +47,12 @@ export default async function globalSetup() {
   const baseURL = process.env.BASE_URL ?? 'http://localhost:5173';
 
   await setupStagingBarrier({ baseURL, username, password });
-  await preRunCleanup(baseURL);
+  // SKIP_CROSSRUN_CLEANUP=1 setzt der Monitor-Runner: er führt den (teuren, über alle
+  // Staging-User scannenden) Cross-Run-Cleanup EINMAL zentral vor allen Suites aus,
+  // statt ihn in jedem der 6 Suite-global-setups zu wiederholen.
+  if (process.env.SKIP_CROSSRUN_CLEANUP !== '1') {
+    await preRunCleanup(baseURL);
+  }
   if (process.env.SKIP_APP_TEST_USER_SETUP === '1') {
     writeRuntimeTestUserState({
       status: 'skipped',

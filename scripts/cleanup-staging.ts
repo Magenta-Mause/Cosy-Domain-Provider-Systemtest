@@ -43,7 +43,11 @@ async function main() {
   }
 
   try {
-    const orphanResult = await deleteOrphanPlaywrightUsers(baseURL);
+    // Graceful Zeitlimit für den Scan (Default 4 Min). Liegt bewusst unter dem harten
+    // spawnSync-Timeout des Monitor-Runners, damit der Scan sauber abbricht und seine
+    // Teilergebnisse loggt, statt hart gekillt zu werden.
+    const deadlineMs = Number(process.env.CLEANUP_DEADLINE_MS ?? 4 * 60 * 1000);
+    const orphanResult = await deleteOrphanPlaywrightUsers(baseURL, { deadlineMs });
     console.log(
       `Admin-Scan: gelöscht=${orphanResult.deleted.length}, fehlgeschlagen=${orphanResult.failed.length}`,
     );

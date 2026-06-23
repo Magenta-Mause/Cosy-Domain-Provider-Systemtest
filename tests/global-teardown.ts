@@ -22,7 +22,10 @@ export default async function globalTeardown() {
 
   // Sicherheitsnetz: Admin-Scan auf Karteileichen, die nie in cleanup-users.json landeten
   // (z.B. wegen Setup-Crash vor recordCleanupUser, oder wegen Vergessens in Specs).
-  if (getAdminKey()) {
+  // Unter dem Monitor-Runner (SKIP_CROSSRUN_CLEANUP=1) übersprungen — der scannt zentral
+  // einmal vor allen Suites, sonst liefe dieser teure Scan 6× im Teardown. Der per-Suite
+  // Queue-Cleanup oben bleibt und räumt die User, die DIESE Suite angelegt hat.
+  if (process.env.SKIP_CROSSRUN_CLEANUP !== '1' && getAdminKey()) {
     try {
       const orphanResult = await deleteOrphanPlaywrightUsers(baseURL);
       if (orphanResult.deleted.length > 0) {

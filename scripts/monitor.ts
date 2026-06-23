@@ -43,6 +43,11 @@ const RESULTS_DIR = path.resolve('monitor-results');
 // den ganzen Job killt (-> Argo "Degraded"). Mit diesem Timeout wird stattdessen nur
 // die betroffene Suite als rot gewertet, der Lauf endet sauber und pusht die Metriken.
 const SUITE_TIMEOUT_MS = 5 * 60 * 1000;
+
+// Hartes Limit für den zentralen Cross-Run-Cleanup, der EINMAL vor allen Suites läuft
+// (statt 6x in jedem Suite-global-setup + 6x im -teardown). cleanup-staging.ts hat
+// zusätzlich eine graceful Deadline (CLEANUP_DEADLINE_MS, Default 4 Min) darunter.
+const CLEANUP_TIMEOUT_MS = 5 * 60 * 1000;
 const PUSH_JOB = 'cosy-systemtest';
 
 type SuiteResult = {
@@ -70,7 +75,9 @@ function runSuite(suite: SuiteDef): SuiteResult {
   console.log(`\n=== Suite: ${suite.name} (npm run ${suite.script}) ===`);
   const run = spawnSync('npm', ['run', suite.script, '--', '--reporter=json'], {
     stdio: ['ignore', 'inherit', 'inherit'],
-    env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: outFile },
+    // SKIP_CROSSRUN_CLEANUP=1: der teure Orphan-Scan läuft zentral in runCleanup(),
+    // nicht mehr in jedem Suite-global-setup/-teardown.
+    env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: outFile, SKIP_CROSSRUN_CLEANUP: '1' },
     timeout: SUITE_TIMEOUT_MS,
     killSignal: 'SIGTERM',
   });
@@ -106,6 +113,32 @@ function readStats(outFile: string): PlaywrightStats {
     return json.stats ?? {};
   } catch {
     return {};
+  }
+}
+
+// Zentraler Cross-Run-Cleanup: läuft EINMAL vor allen Suites (cleanup-users.json-Queue +
+// Orphan-Admin-Scan über alle Staging-User). Best-effort: Fehler/Timeout werden nur
+// geloggt und brechen den Lauf NICHT ab — die Suites laufen trotzdem, übrige Karteileichen
+// räumt der nächste Lauf. Hart per spawnSync-Timeout begrenzt, damit ein hängender Scan
+// nie den ganzen Job blockiert.
+function runCleanup(): void {
+  console.log('\n=== Cross-Run-Cleanup (einmalig, vor allen Suites) ===');
+  const run = spawnSync('npm', ['run', 'cleanup:staging'], {
+    stdio: ['ignore', 'inherit', 'inherit'],
+    env: { ...process.env },
+    timeout: CLEANUP_TIMEOUT_MS,
+    killSignal: 'SIGTERM',
+  });
+
+  if (run.error && (run.error as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
+    console.warn(
+      `!! Cross-Run-Cleanup nach ${CLEANUP_TIMEOUT_MS / 1000}s abgebrochen (Timeout) — ` +
+        `Suites laufen trotzdem weiter, Rest wird im nächsten Lauf aufgeräumt.`,
+    );
+  } else if (run.status !== 0) {
+    console.warn(
+      `!! Cross-Run-Cleanup endete mit Status ${run.status} — Suites laufen trotzdem weiter.`,
+    );
   }
 }
 
@@ -183,6 +216,8 @@ async function push(body: string): Promise<void> {
 
 async function main(): Promise<void> {
   fs.mkdirSync(RESULTS_DIR, { recursive: true });
+
+  runCleanup();
 
   const results = SUITES.map(runSuite);
 

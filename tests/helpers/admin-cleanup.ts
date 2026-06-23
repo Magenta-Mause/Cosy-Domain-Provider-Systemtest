@@ -77,6 +77,7 @@ export async function deleteUserAsAdmin(
 
 export async function deleteOrphanPlaywrightUsers(
   baseURL: string,
+  opts: { deadlineMs?: number } = {},
 ): Promise<{ deleted: string[]; failed: Array<{ email: string; reason: string }> }> {
   const adminKey = getAdminKey();
   const deleted: string[] = [];
@@ -89,7 +90,20 @@ export async function deleteOrphanPlaywrightUsers(
   const users = await listAdminUsers(baseURL, adminKey);
   const candidates = users.filter((u) => isPlaywrightTestEmail(u.email));
 
+  // Graceful Zeitlimit: bei großem Karteileichen-Backlog + langsamem Staging würde die
+  // sequentielle Schleife sonst unbegrenzt laufen. Mit Deadline brechen wir sauber ab
+  // (Rest räumt der nächste Lauf) statt den ganzen Job in den k8s-Kill zu treiben.
+  const deadline = opts.deadlineMs ? Date.now() + opts.deadlineMs : undefined;
+
   for (const user of candidates) {
+    if (deadline && Date.now() > deadline) {
+      const remaining = candidates.length - deleted.length - failed.length;
+      console.warn(
+        `Orphan-Scan: Zeitlimit (${Math.round(opts.deadlineMs! / 1000)}s) erreicht — ` +
+          `${remaining} von ${candidates.length} Karteileichen übrig, werden im nächsten Lauf gelöscht.`,
+      );
+      break;
+    }
     try {
       const result = await deleteUserAsAdmin(baseURL, user.uuid, adminKey);
       if (result === 'deleted' || result === 'notfound') {
