@@ -15,7 +15,11 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
-      activeDeadlineSeconds: 1800
+      # Reiner Backstop. Der Runner (scripts/monitor.ts) bricht jede Suite intern nach
+      # 5 Min ab (SUITE_TIMEOUT_MS), Worst-Case 6 Suites x 5 Min = 30 Min. Die Deadline
+      # liegt bewusst darüber (40 Min), damit der interne Timeout greift und der Lauf
+      # sauber mit Metriken endet, statt vom k8s-Kill als "Failed" zu enden.
+      activeDeadlineSeconds: 2400
       ttlSecondsAfterFinished: 86400
       template:
         metadata:

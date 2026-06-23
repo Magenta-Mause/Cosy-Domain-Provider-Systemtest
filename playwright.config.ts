@@ -8,7 +8,9 @@ export default defineConfig({
   globalTeardown: require.resolve('./tests/global-teardown'),
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // Gegen Staging immer mind. 1 Retry: fängt transiente Blips (langsames/kurz nicht
+  // erreichbares Staging im nightly) ab, ohne dass die ganze Suite rot wird.
+  retries: process.env.CI ? 2 : 1,
   workers: process.env.CI ? 2 : undefined,
   reporter: process.env.CI
     ? [['github'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]

@@ -36,6 +36,13 @@ const SUITES: SuiteDef[] = [
 ];
 
 const RESULTS_DIR = path.resolve('monitor-results');
+
+// Harte Obergrenze pro Suite. Schützt vor Hängern (z.B. global-setup blockiert auf
+// nicht erreichbarem Staging) — Playwrights Test-Timeout greift NICHT für global-setup,
+// also würde spawnSync sonst unbegrenzt blockieren bis die k8s activeDeadlineSeconds
+// den ganzen Job killt (-> Argo "Degraded"). Mit diesem Timeout wird stattdessen nur
+// die betroffene Suite als rot gewertet, der Lauf endet sauber und pusht die Metriken.
+const SUITE_TIMEOUT_MS = 5 * 60 * 1000;
 const PUSH_JOB = 'cosy-systemtest';
 
 type SuiteResult = {
@@ -64,7 +71,16 @@ function runSuite(suite: SuiteDef): SuiteResult {
   const run = spawnSync('npm', ['run', suite.script, '--', '--reporter=json'], {
     stdio: ['ignore', 'inherit', 'inherit'],
     env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: outFile },
+    timeout: SUITE_TIMEOUT_MS,
+    killSignal: 'SIGTERM',
   });
+
+  // spawnSync setzt bei Timeout run.error (ETIMEDOUT) und sendet killSignal -> status=null.
+  if (run.error && (run.error as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
+    console.error(
+      `!! Suite "${suite.name}" nach ${SUITE_TIMEOUT_MS / 1000}s abgebrochen (Timeout) — gilt als fehlgeschlagen.`,
+    );
+  }
 
   const stats = readStats(outFile);
   const failed = stats.unexpected ?? 0;
