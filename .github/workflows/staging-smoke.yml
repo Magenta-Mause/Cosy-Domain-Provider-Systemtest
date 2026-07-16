@@ -1,0 +1,82 @@
+name: Staging Smoke (Post-Deploy)
+
+# Wird nach einem Push ins Deployment-Repo getriggert (dortiger Workflow
+# `trigger-systemtest.yml` ruft `gh workflow run` mit wait_minutes=5 auf,
+# damit Argo die Pods erst syncen kann). Läuft nur die Core-Suite —
+# die volle Abdeckung liefert weiterhin der nightly In-Cluster-CronJob.
+on:
+  workflow_dispatch:
+    inputs:
+      wait_minutes:
+        description: "Minuten warten bevor die Tests starten (Argo-Sync abwarten)"
+        required: false
+        default: "0"
+      reason:
+        description: "Auslöser, erscheint im Run-Namen (z.B. Deploy-Commit)"
+        required: false
+        default: "manuell"
+
+# Kein paralleler Staging-Lauf (geteilter Fixture-User). Bei mehreren
+# Dispatches bleibt max. ein Lauf in der Warteschlange (der neueste).
+concurrency:
+  group: staging-smoke
+  cancel-in-progress: false
+
+jobs:
+  core:
+    name: core — ${{ inputs.reason }}
+    runs-on: ubuntu-latest
+    # 5 Min Warten + Core-Suite; die alte Nightly hatte 15 Min pro Suite.
+    timeout-minutes: 30
+
+    env:
+      BASE_URL: ${{ vars.BASE_URL || 'https://staging.domain-provider.cosy-hosting.net' }}
+      STAGING_AUTH_USERNAME: ${{ secrets.STAGING_AUTH_USERNAME }}
+      STAGING_AUTH_PASSWORD: ${{ secrets.STAGING_AUTH_PASSWORD }}
+      MAIL_SERVICE_API_KEY: ${{ secrets.MAIL_SERVICE_API_KEY }}
+      ADMIN_PORTAL_API_KEY: ${{ secrets.ADMIN_PORTAL_API_KEY }}
+      TEST_USER_SETUP_MAIL_TIMEOUT_MS: "120000"
+      USE_FIXTURE_USER: ${{ vars.USE_FIXTURE_USERS }}
+      FIXTURE_USER_EMAIL: ${{ secrets.FIXTURE_USER_DEFAULT_EMAIL }}
+      FIXTURE_USER_USERNAME: ${{ secrets.FIXTURE_USER_DEFAULT_USERNAME }}
+      FIXTURE_USER_PASSWORD: ${{ secrets.FIXTURE_USER_DEFAULT_PASSWORD }}
+      FIXTURE_USER_MFA_SECRET: ${{ secrets.FIXTURE_USER_DEFAULT_MFA_SECRET }}
+
+    steps:
+      - name: Auf Argo-Sync warten (${{ inputs.wait_minutes }} Min)
+        if: ${{ inputs.wait_minutes != '0' }}
+        env:
+          WAIT_MINUTES: ${{ inputs.wait_minutes }}
+        run: sleep "$(( WAIT_MINUTES * 60 ))"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run core suite
+        run: npm run test:staging:core
+
+      - name: Upload HTML report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-core
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Upload traces, videos and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-core
+          path: test-results/
+          retention-days: 7
