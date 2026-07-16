@@ -1,8 +1,10 @@
 name: Staging Smoke (Post-Deploy)
 
-# Wird nach einem Push ins Deployment-Repo getriggert (dortiger Workflow
-# `trigger-systemtest.yml` ruft `gh workflow run` mit wait_minutes=5 auf,
-# damit Argo die Pods erst syncen kann). Läuft nur die Core-Suite —
+# Wird nach einem Push ins Deployment-Repo getriggert: dessen Workflow
+# `trigger-systemtest.yml` pusht per SSH-Deploy-Key einen leeren Commit
+# (auf Basis von main) auf den Branch `staging-deploy-trigger` — Deploy-Keys
+# können keine Workflows dispatchen, Pushes triggern sie aber. Bei Push
+# warten wir fix 5 Min auf den Argo-Sync. Läuft nur die Core-Suite —
 # die volle Abdeckung liefert weiterhin der nightly In-Cluster-CronJob.
 on:
   workflow_dispatch:
@@ -15,6 +17,8 @@ on:
         description: "Auslöser, erscheint im Run-Namen (z.B. Deploy-Commit)"
         required: false
         default: "manuell"
+  push:
+    branches: [staging-deploy-trigger]
 
 # Kein paralleler Staging-Lauf (geteilter Fixture-User). Bei mehreren
 # Dispatches bleibt max. ein Lauf in der Warteschlange (der neueste).
@@ -24,12 +28,13 @@ concurrency:
 
 jobs:
   core:
-    name: core — ${{ inputs.reason }}
+    name: core — ${{ inputs.reason || github.event.head_commit.message }}
     runs-on: ubuntu-latest
     # 5 Min Warten + Core-Suite; die alte Nightly hatte 15 Min pro Suite.
     timeout-minutes: 30
 
     env:
+      WAIT_MINUTES: ${{ github.event_name == 'push' && '5' || inputs.wait_minutes }}
       BASE_URL: ${{ vars.BASE_URL || 'https://staging.domain-provider.cosy-hosting.net' }}
       STAGING_AUTH_USERNAME: ${{ secrets.STAGING_AUTH_USERNAME }}
       STAGING_AUTH_PASSWORD: ${{ secrets.STAGING_AUTH_PASSWORD }}
@@ -43,10 +48,8 @@ jobs:
       FIXTURE_USER_MFA_SECRET: ${{ secrets.FIXTURE_USER_DEFAULT_MFA_SECRET }}
 
     steps:
-      - name: Auf Argo-Sync warten (${{ inputs.wait_minutes }} Min)
-        if: ${{ inputs.wait_minutes != '0' }}
-        env:
-          WAIT_MINUTES: ${{ inputs.wait_minutes }}
+      - name: Auf Argo-Sync warten
+        if: ${{ env.WAIT_MINUTES != '0' }}
         run: sleep "$(( WAIT_MINUTES * 60 ))"
 
       - uses: actions/checkout@v4
