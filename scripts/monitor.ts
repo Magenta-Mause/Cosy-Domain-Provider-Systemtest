@@ -28,7 +28,7 @@ type SuiteDef = { name: string; script: string };
 // ausschließlich in ihrer jeweiligen Suite.
 const SUITES: SuiteDef[] = [
   { name: 'default', script: 'test:staging:core' },
-  { name: 'mail', script: 'test:staging:mail-only' },
+  { name: 'mail', script: 'test:staging:mail' },
   { name: 'mfa-ui', script: 'test:staging:mfa-ui' },
   { name: 'stripe', script: 'test:staging:stripe' },
   { name: 'admin', script: 'test:staging:admin' },

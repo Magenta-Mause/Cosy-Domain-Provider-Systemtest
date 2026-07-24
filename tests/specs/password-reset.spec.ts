@@ -1,202 +1,126 @@
-import { test, expect } from '../fixtures';
+import { test, expect, runsOnlyAgainstStaging, runsOnlyWithEnv } from '../fixtures';
 import {
   ForgotPasswordPage,
   LoginPage,
   ResetPasswordPage,
   TwoFactorSetupPage,
-  VerifyPage,
 } from '@pages/index';
 import {
+  MAIL_FLOW_TEST_TIMEOUT_MS,
   MailService,
-  enableCaptchaBypass,
-  generateTestEmail,
-  generateTotpCode,
-  recordCleanupUser,
+  RESET_PASSWORD_MAIL_SUBJECT,
+  loginWithoutMfaViaApi,
+  logoutKeepingStagingBarrier,
+  registerTestUserViaApi,
+  setupMfaViaApi,
   updateCleanupUser,
+  verifyUserViaMailLink,
 } from '@helpers/index';
-import { readStagingStorageState } from '@helpers/staging-auth';
 
 test.describe('Passwort-Reset-Flow', () => {
-  async function registerViaApi(
-    page: import('@playwright/test').Page,
-    opts: { email: string; username: string; password: string },
-  ) {
-    const baseUrl = process.env.BASE_URL ?? 'http://localhost:5173';
-    await enableCaptchaBypass(page.context());
-    const res = await page.request.post(`${baseUrl}/api/v1/auth/register?tokenMode=COOKIE`, {
-      data: { ...opts, captchaToken: 'BYPASS' },
-    });
-    expect(res.status()).toBe(201);
-    recordCleanupUser({
-      email: opts.email,
-      password: opts.password,
-      source: 'password-reset.spec.ts',
-    });
-
-    const tokenRes = await page.request.get(`${baseUrl}/api/v1/auth/token`);
-    expect(tokenRes.ok()).toBeTruthy();
-    const identityToken = await tokenRes.text();
-    const resendRes = await page.request.post(
-      `${baseUrl}/api/v1/auth/resend-verification`,
-      { headers: { Authorization: `Bearer ${identityToken}` } },
-    );
-    expect(resendRes.ok()).toBeTruthy();
-  }
-
-  async function verifyAccount(page: import('@playwright/test').Page, email: string, after: Date) {
-    const mail = new MailService();
-    const verifyMail = await mail.waitForMail({
-      recipient: email,
-      subjectContains: 'Verify Your Account',
-      after,
-      timeoutMs: 90_000,
-    });
-
-    const verify = new VerifyPage(page);
-    await verify.navigateWithToken(mail.extractVerifyToken(verifyMail));
-    await expect(verify.successMessage).toBeVisible();
-  }
-
   test('Login-E-Mail wird im Passwort-vergessen-Formular vorbefüllt', async ({ page }) => {
     const email = 'prefill-check@example.de';
     const login = new LoginPage(page);
     const forgotPassword = new ForgotPasswordPage(page);
 
-    await login.navigate();
-    await login.emailInput.fill(email);
-    await login.emailContinueBtn.click();
-    await expect(login.passwordInput).toBeVisible();
+    await test.step('Given: ein User hat im Login seine E-Mail eingegeben', async () => {
+      await login.navigate();
+      await login.emailInput.fill(email);
+      await login.emailContinueBtn.click();
+      await expect(login.passwordInput).toBeVisible();
+    });
 
-    await login.forgotPasswordLink.click();
-    await expect(forgotPassword.emailInput).toBeVisible();
-    await expect(forgotPassword.emailInput).toHaveValue(email);
+    await test.step('When: er "Passwort vergessen" öffnet', async () => {
+      await login.forgotPasswordLink.click();
+    });
+
+    await test.step('Then: ist seine E-Mail dort vorbefüllt', async () => {
+      await expect(forgotPassword.emailInput).toBeVisible();
+      await expect(forgotPassword.emailInput).toHaveValue(email);
+    });
   });
 
   test.describe('mit Testmailbox', () => {
-    test.skip(
-      process.env.RUN_MAIL_FLOW_TESTS !== '1',
-      'Mail-Flow-Tests laufen nur mit RUN_MAIL_FLOW_TESTS=1, damit der Default-Staging-Run nur den Setup-User per Mail registriert.',
+    runsOnlyAgainstStaging(
+      'Mail-Flow-Tests brauchen die Staging-Mail-Pipeline (Backend → Test-Mailbox) — lokal nicht verdrahtet.',
     );
+    runsOnlyWithEnv('MAIL_SERVICE_API_KEY', 'Mail-Tests');
 
-    test.skip(
-      !process.env.MAIL_SERVICE_API_KEY,
-      'MAIL_SERVICE_API_KEY nicht gesetzt — Mail-Tests übersprungen',
-    );
+    test('Reset-Link setzt neues Passwort und MFA wird mit zurückgesetzt', async ({ page }) => {
+      test.setTimeout(MAIL_FLOW_TEST_TIMEOUT_MS);
 
-    test('Reset-Link setzt neues Passwort und MFA wird mit zurückgesetzt', async ({
-      page,
-    }) => {
-      test.setTimeout(240_000);
-
-      const baseUrl = process.env.BASE_URL ?? 'http://localhost:5173';
-      const email = generateTestEmail();
-      const oldPassword = 'OldTest1234!';
       const newPassword = `NewTest1234!${Date.now().toString(36)}`;
-      const registeredAt = new Date();
 
-      await registerViaApi(page, {
-        email,
-        username: `reset${Date.now().toString(36)}`,
-        password: oldPassword,
-      });
-      await verifyAccount(page, email, registeredAt);
-
-      // Initiales MFA per API einrichten (UI-Setup wird in mfa-ui.spec.ts geprüft).
-      const initialToken = await page.request
-        .get(`${baseUrl}/api/v1/auth/token`)
-        .then((r) => r.text());
-      const initialSetup = (await page.request
-        .post(`${baseUrl}/api/v1/auth/mfa/setup`, {
-          headers: { Authorization: `Bearer ${initialToken}` },
-        })
-        .then((r) => r.json())) as { secret: string };
-      const initialSecret = initialSetup.secret;
-      updateCleanupUser(email, { mfaSecret: initialSecret });
-      const initialConfirmRes = await page.request.post(
-        `${baseUrl}/api/v1/auth/mfa/confirm`,
-        {
-          headers: { Authorization: `Bearer ${initialToken}` },
-          data: { totpCode: generateTotpCode(initialSecret) },
-        },
-      );
-      expect(initialConfirmRes.ok()).toBeTruthy();
-
-      // App-Session ausloggen, aber den Staging-Barrier-Cookie wieder setzen —
-      // clearCookies() entfernt sonst auch die Staging-Auth und /forgot-password
-      // landet hinter der Staging-Sperre (lokal kein Effekt, da leerer State).
-      await page.context().clearCookies();
-      await page.context().addCookies(readStagingStorageState().cookies);
-      await enableCaptchaBypass(page.context());
-
-      const forgotPassword = new ForgotPasswordPage(page);
-      await forgotPassword.navigate();
-      const resetRequestedAt = new Date();
-      await forgotPassword.requestReset(email);
-      await expect(forgotPassword.successMessage).toBeVisible();
-
-      const mail = new MailService();
-      const resetMail = await mail.waitForMail({
-        recipient: email,
-        subjectContains: 'Reset',
-        after: resetRequestedAt,
-        timeoutMs: 90_000,
+      const user = await test.step('Given: ein verifizierter User mit MFA', async () => {
+        const u = await registerTestUserViaApi(page, { source: 'password-reset.spec.ts' });
+        await verifyUserViaMailLink(page, u);
+        // MFA per API einrichten — das UI-Setup wird in mfa-ui.spec.ts geprüft.
+        const mfaSecret = await setupMfaViaApi(page.request, u.email);
+        return { ...u, mfaSecret };
       });
 
-      const resetPassword = new ResetPasswordPage(page);
-      await resetPassword.navigateWithToken(mail.extractResetPasswordToken(resetMail));
-      await resetPassword.resetPassword(newPassword);
-      updateCleanupUser(email, { password: newPassword });
+      await test.step('And: der User ist ausgeloggt', async () => {
+        await logoutKeepingStagingBarrier(page);
+      });
 
-      await page.waitForURL(/\/login/, { timeout: 10_000 });
+      const resetToken = await test.step('When: er über "Passwort vergessen" einen Reset-Link anfordert', async () => {
+        const forgotPassword = new ForgotPasswordPage(page);
+        await forgotPassword.navigate();
+        const requestedAt = new Date();
+        await forgotPassword.requestReset(user.email);
+        await expect(forgotPassword.successMessage).toBeVisible();
 
-      // Programmatisches Login (Turnstile-Widget blockiert UI-Login headless).
-      const loginRes = await page.request.post(
-        `${baseUrl}/api/v1/auth/login?tokenMode=COOKIE`,
-        { data: { email, password: newPassword, captchaToken: 'BYPASS' } },
-      );
-      expect(loginRes.ok()).toBeTruthy();
-      // mfaRequired=false → leerer Body. Falls Backend MFA noch hätte, käme JSON.
-      expect(await loginRes.text()).toBe('');
+        const mail = new MailService();
+        const resetMail = await mail.waitForMail({
+          recipient: user.email,
+          subjectContains: RESET_PASSWORD_MAIL_SUBJECT,
+          after: requestedAt,
+        });
+        return mail.extractResetPasswordToken(resetMail);
+      });
 
-      // Nach Login navigiert das Dashboard via require-full-auth zu /mfa-setup,
-      // weil mfaEnabled jetzt false ist — das ist der eigentliche MFA-Reset-Beweis.
-      await page.goto('/dashboard');
-      await expect(page).toHaveURL(/\/mfa-setup/, { timeout: 10_000 });
-      const setup = new TwoFactorSetupPage(page);
-      await expect(setup.heading).toBeVisible();
+      await test.step('And: über den Link ein neues Passwort setzt', async () => {
+        const resetPassword = new ResetPasswordPage(page);
+        await resetPassword.navigateWithToken(resetToken);
+        await resetPassword.resetPassword(newPassword);
+        updateCleanupUser(user.email, { password: newPassword });
+        await page.waitForURL(/\/login/, { timeout: 10_000 });
+      });
 
-      // Neuen MFA-Secret aus dem Backend holen + bestätigen (API umgeht den
-      // input-otp / React-StrictMode-Race im Dev-Build).
-      const newToken = await page.request
-        .get(`${baseUrl}/api/v1/auth/token`)
-        .then((r) => r.text());
-      const newSetup = (await page.request
-        .post(`${baseUrl}/api/v1/auth/mfa/setup`, {
-          headers: { Authorization: `Bearer ${newToken}` },
-        })
-        .then((r) => r.json())) as { secret: string };
-      expect(newSetup.secret).not.toBe(initialSecret);
-      updateCleanupUser(email, { mfaSecret: newSetup.secret });
-      const newConfirmRes = await page.request.post(
-        `${baseUrl}/api/v1/auth/mfa/confirm`,
-        {
-          headers: { Authorization: `Bearer ${newToken}` },
-          data: { totpCode: generateTotpCode(newSetup.secret) },
-        },
-      );
-      expect(newConfirmRes.ok()).toBeTruthy();
+      await test.step('Then: funktioniert der Login mit dem neuen Passwort ohne MFA', async () => {
+        // Programmatisch statt UI (Turnstile blockiert headless) — und der leere
+        // Response-Body beweist, dass das Backend keine MFA-Challenge mehr stellt.
+        await loginWithoutMfaViaApi(page.request, { email: user.email, password: newPassword });
+      });
 
-      await page.goto('/dashboard');
-      await expect(page).toHaveURL(/\/dashboard/);
+      const newSecret = await test.step('And: das Dashboard erzwingt ein neues MFA-Setup', async () => {
+        // require-full-auth leitet zu /mfa-setup, weil mfaEnabled durch den Reset
+        // false ist — das ist der eigentliche MFA-Reset-Beweis.
+        await page.goto('/dashboard');
+        await expect(page).toHaveURL(/\/mfa-setup/, { timeout: 10_000 });
+        await expect(new TwoFactorSetupPage(page).heading).toBeVisible();
+        // Neues Secret per API bestätigen (umgeht den input-otp/StrictMode-Race im Dev-Build).
+        return setupMfaViaApi(page.request, user.email);
+      });
+
+      await test.step('And: mit dem neuen MFA ist das Dashboard wieder erreichbar', async () => {
+        expect(newSecret).not.toBe(user.mfaSecret);
+        await page.goto('/dashboard');
+        await expect(page).toHaveURL(/\/dashboard/);
+      });
     });
 
     test('Ungültige Reset-Tokens zeigen eine verständliche Fehlermeldung', async ({ page }) => {
       const resetPassword = new ResetPasswordPage(page);
 
-      await resetPassword.navigateWithToken('00000000-0000-0000-0000-000000000000');
-      await resetPassword.resetPassword('NewTest1234!');
+      await test.step('When: ein Passwort mit einem ungültigen Token gesetzt werden soll', async () => {
+        await resetPassword.navigateWithToken('00000000-0000-0000-0000-000000000000');
+        await resetPassword.resetPassword('NewTest1234!');
+      });
 
-      await expect(resetPassword.invalidOrExpiredMessage).toBeVisible();
+      await test.step('Then: erscheint die Fehlermeldung', async () => {
+        await expect(resetPassword.invalidOrExpiredMessage).toBeVisible();
+      });
     });
   });
 });

@@ -1,105 +1,66 @@
-import { test, expect } from '../fixtures';
-import { LoginPage, TwoFactorSetupPage, VerifyPage } from '@pages/index';
+import { test, expect, runsOnlyAgainstStaging, runsOnlyWithEnv } from '../fixtures';
+import { LoginPage, TwoFactorSetupPage } from '@pages/index';
 import {
+  MAIL_FLOW_TEST_TIMEOUT_MS,
+  STAGING_STATE_PATH,
   enableCaptchaBypass,
-  generateTestEmail,
   generateTotpCode,
-  MailService,
-  recordCleanupUser,
+  registerTestUserViaApi,
+  resolveBaseURL,
   updateCleanupUser,
+  verifyUserViaMailLink,
 } from '@helpers/index';
 
 test.describe('MFA-UI-Flow', () => {
-  test.skip(
-    process.env.RUN_MFA_UI_TESTS !== '1',
-    'MFA-UI-Test läuft nur mit RUN_MFA_UI_TESTS=1, weil er eine zusätzliche Verifizierungsmail erzeugt.',
+  runsOnlyAgainstStaging(
+    'MFA-UI-Test braucht die Staging-Mail-Pipeline für die Verifizierungsmail — lokal nicht verdrahtet.',
   );
-
-  test.skip(
-    !process.env.MAIL_SERVICE_API_KEY,
-    'MAIL_SERVICE_API_KEY nicht gesetzt — MFA-UI-Test übersprungen',
-  );
-
-  async function registerViaApi(
-    page: import('@playwright/test').Page,
-    opts: { email: string; username: string; password: string },
-  ) {
-    const baseUrl = process.env.BASE_URL ?? 'http://localhost:5173';
-    await enableCaptchaBypass(page.context());
-    const res = await page.request.post(`${baseUrl}/api/v1/auth/register?tokenMode=COOKIE`, {
-      data: { ...opts, captchaToken: 'BYPASS' },
-    });
-    expect(res.status()).toBe(201);
-    recordCleanupUser({
-      email: opts.email,
-      password: opts.password,
-      source: 'mfa-ui.spec.ts',
-    });
-
-    // Registrierung erzeugt nur den Token, keine Mail — resend-verification löst die
-    // Verify-Mail aus (siehe UserVerificationService.issueVerificationToken).
-    const tokenRes = await page.request.get(`${baseUrl}/api/v1/auth/token`);
-    expect(tokenRes.ok()).toBeTruthy();
-    const identityToken = await tokenRes.text();
-    const resendRes = await page.request.post(`${baseUrl}/api/v1/auth/resend-verification`, {
-      headers: { Authorization: `Bearer ${identityToken}` },
-    });
-    expect(resendRes.ok()).toBeTruthy();
-  }
+  runsOnlyWithEnv('MAIL_SERVICE_API_KEY', 'MFA-UI-Test');
 
   test('MFA wird im Browser eingerichtet und beim Login abgefragt', async ({ page, browser }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(MAIL_FLOW_TEST_TIMEOUT_MS);
 
-    const email = generateTestEmail();
-    const password = 'Test1234!';
-    const registeredAt = new Date();
-
-    await registerViaApi(page, {
-      email,
-      username: `mfa${Date.now().toString(36)}`,
-      password,
+    const user = await test.step('Given: ein frisch registrierter, verifizierter User', async () => {
+      const u = await registerTestUserViaApi(page, { source: 'mfa-ui.spec.ts' });
+      await verifyUserViaMailLink(page, u, { timeoutMs: 120_000 });
+      return u;
     });
 
-    const mail = new MailService();
-    const verifyMail = await mail.waitForMail({
-      recipient: email,
-      subjectContains: 'Verify Your Account',
-      after: registeredAt,
-      timeoutMs: 120_000,
+    const secret = await test.step('When: er MFA über die Setup-Seite einrichtet', async () => {
+      const setup = new TwoFactorSetupPage(page);
+      await setup.navigate();
+      await expect(setup.heading).toBeVisible();
+      await expect(setup.qrCode).toBeVisible();
+
+      const s = (await setup.secret.innerText()).replace(/\s+/g, '');
+      expect(s).toMatch(/^[A-Z2-7]+$/);
+      updateCleanupUser(user.email, { mfaSecret: s });
+
+      await setup.confirm(generateTotpCode(s));
+      await expect(page).toHaveURL(/\/dashboard/);
+      return s;
     });
 
-    const verify = new VerifyPage(page);
-    await verify.navigateWithToken(mail.extractVerifyToken(verifyMail));
-    await expect(verify.successMessage).toBeVisible();
+    await test.step('Then: fragt ein frischer Login den TOTP-Code ab', async () => {
+      // Neuer Browser-Context = keine Session-Cookies, nur die Staging-Barrier.
+      const loginContext = await browser.newContext({
+        baseURL: resolveBaseURL(),
+        locale: 'de-DE',
+        storageState: STAGING_STATE_PATH,
+      });
+      await enableCaptchaBypass(loginContext);
+      const loginPage = await loginContext.newPage();
 
-    const setup = new TwoFactorSetupPage(page);
-    await setup.navigate();
-    await expect(setup.heading).toBeVisible();
-    await expect(setup.qrCode).toBeVisible();
-    const secret = (await setup.secret.innerText()).replace(/\s+/g, '');
-    expect(secret).toMatch(/^[A-Z2-7]+$/);
-    updateCleanupUser(email, { mfaSecret: secret });
-
-    await setup.confirm(generateTotpCode(secret));
-    await expect(page).toHaveURL(/\/dashboard/);
-
-    const loginContext = await browser.newContext({
-      baseURL: process.env.BASE_URL ?? 'http://localhost:5173',
-      locale: 'de-DE',
-      storageState: '.auth/state.json',
+      try {
+        const login = new LoginPage(loginPage);
+        await login.navigate();
+        await login.submitCredentialsForMfa(user.email, user.password);
+        await expect(login.mfaTotpInput).toBeVisible();
+        await login.completeMfa(generateTotpCode(secret));
+        await expect(loginPage).toHaveURL(/\/dashboard/);
+      } finally {
+        await loginContext.close();
+      }
     });
-    await enableCaptchaBypass(loginContext);
-    const loginPageHandle = await loginContext.newPage();
-
-    try {
-      const login = new LoginPage(loginPageHandle);
-      await login.navigate();
-      await login.submitCredentialsForMfa(email, password);
-      await expect(login.mfaTotpInput).toBeVisible();
-      await login.completeMfa(generateTotpCode(secret));
-      await expect(loginPageHandle).toHaveURL(/\/dashboard/);
-    } finally {
-      await loginContext.close();
-    }
   });
 });

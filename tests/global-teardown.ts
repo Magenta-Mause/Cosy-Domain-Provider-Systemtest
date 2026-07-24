@@ -1,13 +1,14 @@
 import * as fs from 'fs';
 import { deleteOrphanPlaywrightUsers, getAdminKey } from './helpers/admin-cleanup';
 import { processCleanupQueue } from './helpers/cleanup';
+import { resolveBaseURL } from './helpers/constants';
 import {
   APP_USER_STATE_PATH,
   TEST_USER_STATE_PATH,
 } from './helpers/runtime-test-user';
 
 export default async function globalTeardown() {
-  const baseURL = process.env.BASE_URL ?? 'http://localhost:5173';
+  const baseURL = resolveBaseURL();
 
   const queueResult = await processCleanupQueue(baseURL);
   if (queueResult.deleted.length > 0) {

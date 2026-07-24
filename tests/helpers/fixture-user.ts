@@ -1,26 +1,11 @@
-import * as fs from 'fs';
 import { request } from '@playwright/test';
+import { loginWithMfaViaApi } from './auth-api';
 import {
   APP_USER_STATE_PATH,
   ensureAuthDir,
-  STAGING_STATE_PATH,
   writeRuntimeTestUserState,
 } from './runtime-test-user';
-import { generateTotpCode } from './totp';
-
-type StorageState = {
-  cookies: Array<{
-    name: string;
-    value: string;
-    domain: string;
-    path: string;
-    expires: number;
-    httpOnly: boolean;
-    secure: boolean;
-    sameSite: 'Strict' | 'Lax' | 'None';
-  }>;
-  origins: Array<{ origin: string; localStorage: Array<{ name: string; value: string }> }>;
-};
+import { buildApiStorageState } from './staging-auth';
 
 export type FixtureUserCreds = {
   email: string;
@@ -45,70 +30,22 @@ export function readFixtureUserFromEnv(): FixtureUserCreds {
   return { email, username, password, mfaSecret };
 }
 
-export function buildApiStorageState(baseURL: string): StorageState {
-  const state = JSON.parse(fs.readFileSync(STAGING_STATE_PATH, 'utf-8')) as StorageState;
-  const hostname = new URL(baseURL).hostname;
-
-  return {
-    ...state,
-    cookies: [
-      ...state.cookies.filter((c) => c.name !== 'CAPTCHA_BYPASS'),
-      {
-        name: 'CAPTCHA_BYPASS',
-        value: '1',
-        domain: hostname,
-        path: '/',
-        expires: -1,
-        httpOnly: false,
-        secure: baseURL.startsWith('https://'),
-        sameSite: 'Lax',
-      },
-    ],
-  };
-}
-
 export async function setupFixtureTestUser(baseURL: string): Promise<void> {
   ensureAuthDir();
   const creds = readFixtureUserFromEnv();
-  const storageState = buildApiStorageState(baseURL);
-
-  const ctx = await request.newContext({ baseURL, storageState });
+  const ctx = await request.newContext({ baseURL, storageState: buildApiStorageState(baseURL) });
 
   try {
-    const loginRes = await ctx.post('/api/v1/auth/login?tokenMode=COOKIE', {
-      data: { email: creds.email, password: creds.password, captchaToken: 'BYPASS' },
-    });
-
-    if (!loginRes.ok()) {
+    try {
+      await loginWithMfaViaApi(ctx, creds);
+    } catch (error) {
       throw new Error(
-        `Fixture-User-Login fehlgeschlagen (${creds.email}): ${loginRes.status()} ${await loginRes.text()}`,
+        `Fixture-User-Login fehlgeschlagen (${creds.email}) — wurde der User via ` +
+          `provision:fixture-users mit MFA provisioniert? Ursache: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
       );
     }
-
-    const loginBody = (await loginRes.json()) as {
-      mfaRequired?: boolean;
-      challengeToken?: string;
-    };
-
-    if (!loginBody.mfaRequired || !loginBody.challengeToken) {
-      throw new Error(
-        `Fixture-User-Login lieferte keine MFA-Challenge — wurde der User via provision:fixture-users mit MFA versehen? Antwort: ${JSON.stringify(loginBody)}`,
-      );
-    }
-
-    const challengeRes = await ctx.post('/api/v1/auth/mfa/challenge?tokenMode=COOKIE', {
-      data: {
-        challengeToken: loginBody.challengeToken,
-        totpCode: generateTotpCode(creds.mfaSecret),
-      },
-    });
-
-    if (!challengeRes.ok()) {
-      throw new Error(
-        `Fixture-User MFA-Challenge fehlgeschlagen: ${challengeRes.status()} ${await challengeRes.text()}`,
-      );
-    }
-
     await ctx.storageState({ path: APP_USER_STATE_PATH });
   } finally {
     await ctx.dispose();

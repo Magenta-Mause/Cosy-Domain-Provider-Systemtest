@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import { request } from '@playwright/test';
+import { CAPTCHA_BYPASS_COOKIE } from './constants';
 import { ensureAuthDir, STAGING_STATE_PATH } from './runtime-test-user';
 
-type StorageState = {
+export type StorageState = {
   cookies: Array<{
     name: string;
     value: string;
@@ -60,4 +61,30 @@ export function readStagingStorageState(): StorageState {
   } catch {
     return EMPTY_STATE;
   }
+}
+
+/**
+ * Storage-State für API-Request-Contexts: Staging-Barrier-Cookies plus
+ * CAPTCHA_BYPASS-Cookie, damit Register/Login mit dem Bypass-Token durchgehen.
+ */
+export function buildApiStorageState(baseURL: string): StorageState {
+  const state = readStagingStorageState();
+  const hostname = new URL(baseURL).hostname;
+
+  return {
+    ...state,
+    cookies: [
+      ...state.cookies.filter((cookie) => cookie.name !== CAPTCHA_BYPASS_COOKIE),
+      {
+        name: CAPTCHA_BYPASS_COOKIE,
+        value: '1',
+        domain: hostname,
+        path: '/',
+        expires: -1,
+        httpOnly: false,
+        secure: baseURL.startsWith('https://'),
+        sameSite: 'Lax',
+      },
+    ],
+  };
 }

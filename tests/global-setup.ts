@@ -1,50 +1,31 @@
 import { chromium, request } from '@playwright/test';
 import * as fs from 'fs';
 import { deleteOrphanPlaywrightUsers, getAdminKey } from './helpers/admin-cleanup';
+import {
+  loginWithMfaViaApi,
+  registerUser,
+  setupMfaViaApi,
+  triggerVerificationMail,
+  waitForVerificationToken,
+} from './helpers/auth-api';
 import { processCleanupQueue } from './helpers/cleanup';
+import { resolveBaseURL } from './helpers/constants';
 import { setupFixtureTestUser } from './helpers/fixture-user';
-import { MailService } from './helpers/mail-service';
 import {
   APP_USER_STATE_PATH,
   clearCleanupFailures,
   ensureAuthDir,
   generateRuntimeTestUser,
-  recordCleanupUser,
-  STAGING_STATE_PATH,
-  updateCleanupUser,
   writeRuntimeTestUserState,
 } from './helpers/runtime-test-user';
-import { setupStagingBarrier } from './helpers/staging-auth';
-import { generateTotpCode } from './helpers/totp';
-
-const VERIFY_MAIL_SUBJECT = 'Verify Your Account';
-
-type StorageState = {
-  cookies: Array<{
-    name: string;
-    value: string;
-    domain: string;
-    path: string;
-    expires: number;
-    httpOnly: boolean;
-    secure: boolean;
-    sameSite: 'Strict' | 'Lax' | 'None';
-  }>;
-  origins: Array<{
-    origin: string;
-    localStorage: Array<{
-      name: string;
-      value: string;
-    }>;
-  }>;
-};
+import { buildApiStorageState, setupStagingBarrier, type StorageState } from './helpers/staging-auth';
 
 export default async function globalSetup() {
   ensureAuthDir();
 
   const username = process.env.STAGING_AUTH_USERNAME;
   const password = process.env.STAGING_AUTH_PASSWORD;
-  const baseURL = process.env.BASE_URL ?? 'http://localhost:5173';
+  const baseURL = resolveBaseURL();
 
   await setupStagingBarrier({ baseURL, username, password });
   // SKIP_CROSSRUN_CLEANUP=1 setzt der Monitor-Runner: er führt den (teuren, über alle
@@ -115,6 +96,11 @@ async function preRunCleanup(baseURL: string) {
   }
 }
 
+/**
+ * Legt den App-Testuser für den Lauf an: Register → Verify-Mail → Verify im Browser
+ * → MFA per API → Login mit MFA. Der eingeloggte Browser-State landet in
+ * `.auth/app-user-state.json`, die User-Daten in `.auth/test-user.json`.
+ */
 async function setupRuntimeTestUser(baseURL: string) {
   const createdAt = new Date();
   clearAuthenticatedAppState();
@@ -130,56 +116,24 @@ async function setupRuntimeTestUser(baseURL: string) {
   }
 
   const user = generateRuntimeTestUser();
-  recordCleanupUser({
-    email: user.email,
-    password: user.password,
-    source: 'global-setup',
-    createdAt: createdAt.toISOString(),
-  });
   const ctx = await request.newContext({
     baseURL,
-    storageState: createRuntimeApiStorageState(baseURL),
+    storageState: buildApiStorageState(baseURL),
   });
 
   try {
-    const registerRes = await ctx.post('/api/v1/auth/register?tokenMode=COOKIE', {
-      data: { ...user, captchaToken: 'BYPASS' },
-    });
-
-    if (registerRes.status() !== 201) {
-      throw new Error(
-        `Registrierung fehlgeschlagen: ${registerRes.status()} ${await registerRes.text()}`,
-      );
-    }
-    const verificationStorageState = await ctx.storageState();
-
-    const initialIdentityToken = await fetchIdentityToken(baseURL, verificationStorageState);
-    const resendRes = await ctx.post('/api/v1/auth/resend-verification', {
-      headers: { Authorization: `Bearer ${initialIdentityToken}` },
-    });
-    if (!resendRes.ok()) {
-      throw new Error(
-        `Resend-Verification fehlgeschlagen: ${resendRes.status()} ${await resendRes.text()}`,
-      );
-    }
-
-    const mail = new MailService();
-    const verifyMail = await mail.waitForMail({
-      recipient: user.email,
-      subjectContains: VERIFY_MAIL_SUBJECT,
-      after: createdAt,
-      timeoutMs: Number(process.env.TEST_USER_SETUP_MAIL_TIMEOUT_MS ?? 45_000),
-    });
-
-    await verifyAccountInBrowser(
-      baseURL,
-      mail.extractVerifyToken(verifyMail),
-      verificationStorageState,
+    await registerUser(ctx, user, 'global-setup');
+    await triggerVerificationMail(ctx);
+    const verifyToken = await waitForVerificationToken(
+      user.email,
+      createdAt,
+      Number(process.env.TEST_USER_SETUP_MAIL_TIMEOUT_MS ?? 45_000),
     );
-    const identityToken = await fetchIdentityToken(baseURL, verificationStorageState);
-    const mfaSecret = await setupMfa(baseURL, verificationStorageState, identityToken);
-    updateCleanupUser(user.email, { mfaSecret });
-    await createAuthenticatedAppState(baseURL, user, mfaSecret, verificationStorageState);
+    await verifyAccountInBrowser(baseURL, verifyToken, await ctx.storageState());
+
+    const mfaSecret = await setupMfaViaApi(ctx, user.email);
+    await loginWithMfaViaApi(ctx, { ...user, mfaSecret });
+    await ctx.storageState({ path: APP_USER_STATE_PATH });
 
     writeRuntimeTestUserState({
       status: 'ready',
@@ -207,145 +161,6 @@ async function setupRuntimeTestUser(baseURL: string) {
 function clearAuthenticatedAppState() {
   if (fs.existsSync(APP_USER_STATE_PATH)) {
     fs.unlinkSync(APP_USER_STATE_PATH);
-  }
-}
-
-function createRuntimeApiStorageState(baseURL: string): StorageState {
-  const state = JSON.parse(fs.readFileSync(STAGING_STATE_PATH, 'utf-8')) as StorageState;
-  const hostname = new URL(baseURL).hostname;
-
-  return {
-    ...state,
-    cookies: [
-      ...state.cookies.filter((cookie) => cookie.name !== 'CAPTCHA_BYPASS'),
-      {
-        name: 'CAPTCHA_BYPASS',
-        value: '1',
-        domain: hostname,
-        path: '/',
-        expires: -1,
-        httpOnly: false,
-        secure: baseURL.startsWith('https://'),
-        sameSite: 'Lax',
-      },
-    ],
-  };
-}
-
-async function createAuthenticatedAppState(
-  baseURL: string,
-  user: { email: string; password: string },
-  mfaSecret: string,
-  storageState: StorageState,
-) {
-  const ctx = await request.newContext({
-    baseURL,
-    storageState,
-  });
-
-  try {
-    const loginRes = await ctx.post('/api/v1/auth/login?tokenMode=COOKIE', {
-      data: {
-        email: user.email,
-        password: user.password,
-        captchaToken: 'BYPASS',
-      },
-    });
-
-    if (!loginRes.ok()) {
-      throw new Error(`App-Login fehlgeschlagen: ${loginRes.status()} ${await loginRes.text()}`);
-    }
-    const loginBody = (await loginRes.json()) as {
-      mfaRequired?: boolean;
-      challengeToken?: string;
-    };
-
-    if (!loginBody.mfaRequired || !loginBody.challengeToken) {
-      throw new Error(
-        `App-Login hat keine MFA-Challenge geliefert: ${JSON.stringify(loginBody)}`,
-      );
-    }
-
-    const challengeRes = await ctx.post('/api/v1/auth/mfa/challenge?tokenMode=COOKIE', {
-      data: {
-        challengeToken: loginBody.challengeToken,
-        totpCode: generateTotpCode(mfaSecret),
-      },
-    });
-
-    if (!challengeRes.ok()) {
-      throw new Error(
-        `MFA-Challenge fehlgeschlagen: ${challengeRes.status()} ${await challengeRes.text()}`,
-      );
-    }
-
-    await ctx.storageState({ path: APP_USER_STATE_PATH });
-  } finally {
-    await ctx.dispose();
-  }
-}
-
-async function fetchIdentityToken(baseURL: string, storageState: StorageState): Promise<string> {
-  const ctx = await request.newContext({
-    baseURL,
-    storageState,
-  });
-
-  try {
-    const tokenRes = await ctx.get('/api/v1/auth/token');
-    if (!tokenRes.ok()) {
-      throw new Error(
-        `Identity-Token konnte nicht geholt werden: ${tokenRes.status()} ${await tokenRes.text()}`,
-      );
-    }
-
-    return await tokenRes.text();
-  } finally {
-    await ctx.dispose();
-  }
-}
-
-async function setupMfa(
-  baseURL: string,
-  storageState: StorageState,
-  identityToken: string,
-): Promise<string> {
-  const ctx = await request.newContext({
-    baseURL,
-    storageState,
-    extraHTTPHeaders: {
-      Authorization: `Bearer ${identityToken}`,
-    },
-  });
-
-  try {
-    const setupRes = await ctx.post('/api/v1/auth/mfa/setup');
-    if (!setupRes.ok()) {
-      throw new Error(`MFA-Setup fehlgeschlagen: ${setupRes.status()} ${await setupRes.text()}`);
-    }
-
-    const setupBody = (await setupRes.json()) as {
-      secret?: string;
-      totpUri?: string;
-    };
-
-    if (!setupBody.secret) {
-      throw new Error(`MFA-Setup lieferte kein Secret: ${JSON.stringify(setupBody)}`);
-    }
-
-    const confirmRes = await ctx.post('/api/v1/auth/mfa/confirm', {
-      data: { totpCode: generateTotpCode(setupBody.secret) },
-    });
-
-    if (!confirmRes.ok()) {
-      throw new Error(
-        `MFA-Bestätigung fehlgeschlagen: ${confirmRes.status()} ${await confirmRes.text()}`,
-      );
-    }
-
-    return setupBody.secret;
-  } finally {
-    await ctx.dispose();
   }
 }
 

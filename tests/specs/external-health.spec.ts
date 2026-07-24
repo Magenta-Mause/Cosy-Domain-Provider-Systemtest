@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures';
+import { test, expect, runsOnlyAgainstStaging } from '../fixtures';
 import { RegisterPage } from '@pages/index';
 import { generateTestEmail } from '@helpers/index';
 
@@ -21,21 +21,18 @@ const OAUTH_PROVIDERS = [
 ];
 
 test.describe('Externe Integrationen', () => {
-  test.skip(
-    process.env.RUN_EXTERNAL_TESTS !== '1',
-    'Externe-Health-Checks laufen nur mit RUN_EXTERNAL_TESTS=1 (eigene Suite "external").',
+  runsOnlyAgainstStaging(
+    'Externe-Health-Checks (OAuth-Config, Turnstile-Sitekey) prüfen die Staging-Umgebung — lokal nicht aussagekräftig.',
   );
 
   for (const provider of OAUTH_PROVIDERS) {
     test(`OAuth-Init: ${provider.id} leitet zum Provider weiter`, async ({ page }) => {
-      const baseUrl = process.env.BASE_URL ?? 'http://localhost:5173';
       // page.request trägt das Staging-Barriere-Cookie (config use.storageState).
       // maxRedirects:0 -> wir sehen die erste Weiterleitung des Backends zum Provider,
       // ohne dem Provider-Login zu folgen.
-      const res = await page.request.get(
-        `${baseUrl}/api/v1/auth/oauth/${provider.id}/authorize`,
-        { maxRedirects: 0 },
-      );
+      const res = await page.request.get(`/api/v1/auth/oauth/${provider.id}/authorize`, {
+        maxRedirects: 0,
+      });
       expect(
         [301, 302, 303, 307, 308],
         `OAuth-Init ${provider.id} sollte zum Provider weiterleiten (Status ${res.status()})`,

@@ -27,9 +27,8 @@ import {
 } from '../tests/helpers/admin-cleanup';
 import { MailService } from '../tests/helpers/mail-service';
 import { ensureAuthDir, STAGING_STATE_PATH } from '../tests/helpers/runtime-test-user';
-import { setupStagingBarrier } from '../tests/helpers/staging-auth';
+import { buildApiStorageState, setupStagingBarrier } from '../tests/helpers/staging-auth';
 import { generateTotpCode } from '../tests/helpers/totp';
-import { buildApiStorageState } from '../tests/helpers/fixture-user';
 import * as fs from 'fs';
 
 const VERIFY_MAIL_SUBJECT = 'Verify Your Account';

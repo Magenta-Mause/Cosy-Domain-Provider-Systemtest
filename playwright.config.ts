@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
+import { resolveBaseURL } from './tests/helpers/constants';
 
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173';
+const BASE_URL = resolveBaseURL();
 
 export default defineConfig({
   testDir: './tests/specs',

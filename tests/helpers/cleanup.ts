@@ -1,32 +1,19 @@
-import * as fs from 'fs';
 import { request } from '@playwright/test';
 import {
   deleteUserAsAdmin,
   findAdminUserByEmail,
   getAdminKey,
 } from './admin-cleanup';
+import { fetchIdentityToken } from './auth-api';
+import { CAPTCHA_BYPASS_TOKEN } from './constants';
 import {
   type CleanupTestUser,
-  STAGING_STATE_PATH,
   readCleanupUsers,
   recordCleanupFailure,
   removeCleanupUser,
 } from './runtime-test-user';
+import { buildApiStorageState } from './staging-auth';
 import { generateTotpCode } from './totp';
-
-type StorageState = {
-  cookies: Array<{
-    name: string;
-    value: string;
-    domain: string;
-    path: string;
-    expires: number;
-    httpOnly: boolean;
-    secure: boolean;
-    sameSite: 'Strict' | 'Lax' | 'None';
-  }>;
-  origins: Array<{ origin: string; localStorage: Array<{ name: string; value: string }> }>;
-};
 
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 500;
@@ -106,15 +93,16 @@ async function cleanupSingleUser(baseURL: string, user: CleanupTestUser): Promis
 }
 
 async function deleteUserViaSelfLogin(baseURL: string, user: CleanupTestUser): Promise<void> {
-  const storageState = createCleanupStorageState(baseURL);
-  const ctx = await request.newContext({ baseURL, storageState });
+  const ctx = await request.newContext({ baseURL, storageState: buildApiStorageState(baseURL) });
 
   try {
+    // Toleranter Login (kein loginWithMfaViaApi): 401/404 heißt "User schon weg",
+    // und MFA ist optional — je nachdem, wie weit die Spec beim Anlegen kam.
     const loginRes = await ctx.post('/api/v1/auth/login?tokenMode=COOKIE', {
       data: {
         email: user.email,
         password: user.password,
-        captchaToken: 'BYPASS',
+        captchaToken: CAPTCHA_BYPASS_TOKEN,
       },
     });
 
@@ -149,13 +137,7 @@ async function deleteUserViaSelfLogin(baseURL: string, user: CleanupTestUser): P
       }
     }
 
-    const tokenRes = await ctx.get('/api/v1/auth/token');
-    if (!tokenRes.ok()) {
-      throw new Error(
-        `Identity-Token konnte nicht geholt werden: ${tokenRes.status()} ${await tokenRes.text()}`,
-      );
-    }
-    const identityToken = await tokenRes.text();
+    const identityToken = await fetchIdentityToken(ctx);
 
     const deleteCtx = await request.newContext({
       baseURL,
@@ -174,30 +156,6 @@ async function deleteUserViaSelfLogin(baseURL: string, user: CleanupTestUser): P
   } finally {
     await ctx.dispose();
   }
-}
-
-function createCleanupStorageState(baseURL: string): StorageState {
-  const state = fs.existsSync(STAGING_STATE_PATH)
-    ? (JSON.parse(fs.readFileSync(STAGING_STATE_PATH, 'utf-8')) as StorageState)
-    : { cookies: [], origins: [] };
-  const hostname = new URL(baseURL).hostname;
-
-  return {
-    ...state,
-    cookies: [
-      ...state.cookies.filter((cookie) => cookie.name !== 'CAPTCHA_BYPASS'),
-      {
-        name: 'CAPTCHA_BYPASS',
-        value: '1',
-        domain: hostname,
-        path: '/',
-        expires: -1,
-        httpOnly: false,
-        secure: baseURL.startsWith('https://'),
-        sameSite: 'Lax',
-      },
-    ],
-  };
 }
 
 function sleep(ms: number): Promise<void> {

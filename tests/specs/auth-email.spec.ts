@@ -1,116 +1,58 @@
-import { test, expect } from '../fixtures';
+import { test, expect, runsOnlyAgainstStaging, runsOnlyWithEnv } from '../fixtures';
 import { VerifyPage } from '@pages/index';
 import {
-  MailService,
-  generateTestEmail,
-  enableCaptchaBypass,
-  recordCleanupUser,
+  MAIL_FLOW_TEST_TIMEOUT_MS,
+  registerTestUserViaApi,
+  waitForVerificationToken,
 } from '@helpers/index';
 
 test.describe('E-Mail-Verifizierungs-Flow', () => {
-  test.skip(
-    process.env.RUN_MAIL_FLOW_TESTS !== '1',
-    'Mail-Flow-Tests laufen nur mit RUN_MAIL_FLOW_TESTS=1, damit der Default-Staging-Run nur den Setup-User per Mail registriert.',
+  runsOnlyAgainstStaging(
+    'Mail-Flow-Tests brauchen die Staging-Mail-Pipeline (Backend → Test-Mailbox) — lokal nicht verdrahtet.',
   );
+  runsOnlyWithEnv('MAIL_SERVICE_API_KEY', 'Mail-Tests');
 
-  test.skip(
-    !process.env.MAIL_SERVICE_API_KEY,
-    'MAIL_SERVICE_API_KEY nicht gesetzt — Mail-Tests übersprungen',
-  );
-
-  // Mail-Zustellung aus CI dauert teils 30-60s, deshalb großzügiger Test-Budget.
-  // Test 2 macht zwei Mail-Waits hintereinander — braucht Platz für beide.
-  test.describe.configure({ timeout: 240_000 });
-
-  async function registerViaApi(
-    page: import('@playwright/test').Page,
-    opts: { email: string; username: string; password: string },
-  ) {
-    const baseUrl = process.env.BASE_URL ?? 'http://localhost:5173';
-    await enableCaptchaBypass(page.context());
-    const res = await page.request.post(`${baseUrl}/api/v1/auth/register?tokenMode=COOKIE`, {
-      data: { ...opts, captchaToken: 'BYPASS' },
-    });
-    expect(res.status()).toBe(201);
-    recordCleanupUser({
-      email: opts.email,
-      password: opts.password,
-      source: 'auth-email.spec.ts',
-    });
-
-    // Die Registrierung erzeugt nur den Verifizierungs-Token, sendet aber keine Mail
-    // (UserVerificationService.issueVerificationToken). Die Verify-Mail wird erst über
-    // resend-verification verschickt — genau wie der echte /verify-Flow im Frontend.
-    const tokenRes = await page.request.get(`${baseUrl}/api/v1/auth/token`);
-    expect(tokenRes.ok()).toBeTruthy();
-    const identityToken = await tokenRes.text();
-    const resendRes = await page.request.post(`${baseUrl}/api/v1/auth/resend-verification`, {
-      headers: { Authorization: `Bearer ${identityToken}` },
-    });
-    expect(resendRes.ok()).toBeTruthy();
-  }
+  // Test 2 macht zwei Mail-Waits hintereinander — das Budget braucht Platz für beide.
+  test.describe.configure({ timeout: MAIL_FLOW_TEST_TIMEOUT_MS });
 
   test('Registrierung löst Verifizierungsmail aus, Token-Link verifiziert den Account', async ({
     page,
   }) => {
-    const email = generateTestEmail();
-    const startedAt = new Date();
+    const user = await test.step('Given: ein frisch per API registrierter User', () =>
+      registerTestUserViaApi(page, { source: 'auth-email.spec.ts' }));
 
-    await registerViaApi(page, {
-      email,
-      username: `pw${Date.now().toString(36)}`,
-      password: 'Test1234!',
+    const token = await test.step('When: die Verifizierungsmail ankommt', () =>
+      waitForVerificationToken(user.email, user.registeredAt));
+
+    await test.step('Then: verifiziert der Token-Link den Account', async () => {
+      const verify = new VerifyPage(page);
+      await verify.navigateWithToken(token);
+      await expect(verify.successMessage).toBeVisible();
     });
-
-    const mail = new MailService();
-    const verifyMail = await mail.waitForMail({
-      recipient: email,
-      subjectContains: 'Verify Your Account',
-      after: startedAt,
-      timeoutMs: 90_000,
-    });
-
-    const token = mail.extractVerifyToken(verifyMail);
-
-    const verify = new VerifyPage(page);
-    await verify.navigateWithToken(token);
-    await expect(verify.successMessage).toBeVisible();
   });
 
   test('Verifizierungsmail enthält manuellen Code, der im Formular funktioniert', async ({
     page,
   }) => {
-    const email = generateTestEmail();
-    const startedAt = new Date();
-
-    await registerViaApi(page, {
-      email,
-      username: `pw${Date.now().toString(36)}`,
-      password: 'Test1234!',
-    });
-
-    const mail = new MailService();
-    const verifyMail = await mail.waitForMail({
-      recipient: email,
-      subjectContains: 'Verify Your Account',
-      after: startedAt,
-      timeoutMs: 90_000,
-    });
-
-    expect(mail.extractVerifyToken(verifyMail)).toMatch(/^[A-Z0-9]{6}$/);
-
     const verify = new VerifyPage(page);
-    await page.goto('/verify');
-    const resendStartedAt = new Date();
-    await verify.requestVerificationEmail();
-    const resendMail = await mail.waitForMail({
-      recipient: email,
-      subjectContains: 'Verify Your Account',
-      after: resendStartedAt,
-      timeoutMs: 90_000,
+
+    const user = await test.step('Given: ein registrierter User mit 6-stelligem Code in der Verify-Mail', async () => {
+      const u = await registerTestUserViaApi(page, { source: 'auth-email.spec.ts' });
+      const token = await waitForVerificationToken(u.email, u.registeredAt);
+      expect(token).toMatch(/^[A-Z0-9]{6}$/);
+      return u;
     });
-    const token = mail.extractVerifyToken(resendMail);
-    await verify.verifyWithCode(token);
-    await expect(verify.successMessage).toBeVisible();
+
+    const code = await test.step('When: er auf /verify eine neue Verifizierungsmail anfordert', async () => {
+      await page.goto('/verify');
+      const resendRequestedAt = new Date();
+      await verify.requestVerificationEmail();
+      return waitForVerificationToken(user.email, resendRequestedAt);
+    });
+
+    await test.step('Then: verifiziert der manuell eingegebene Code den Account', async () => {
+      await verify.verifyWithCode(code);
+      await expect(verify.successMessage).toBeVisible();
+    });
   });
 });

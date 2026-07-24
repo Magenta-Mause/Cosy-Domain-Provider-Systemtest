@@ -1,5 +1,6 @@
 import { test as base } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { isStagingTarget, resolveBaseURL } from '@helpers/constants';
 import { APP_USER_STATE_PATH, requireRuntimeTestUser } from '@helpers/runtime-test-user';
 import type { RuntimeTestUser } from '@helpers/runtime-test-user';
 
@@ -15,7 +16,7 @@ export const test = base.extend<Fixtures>({
 
   authenticatedPage: async ({ browser, appTestUser }, use) => {
     const context = await browser.newContext({
-      baseURL: process.env.BASE_URL ?? 'http://localhost:5173',
+      baseURL: resolveBaseURL(),
       locale: 'de-DE',
       storageState: APP_USER_STATE_PATH,
     });
@@ -32,3 +33,18 @@ export const test = base.extend<Fixtures>({
 });
 
 export { expect } from '@playwright/test';
+
+// ---------------------------------------------------------------------------
+// Skip-Guards für Opt-in-Specs — direkt im test.describe-Body aufrufen.
+// Die Skip-Gründe erscheinen so einheitlich im Report/Monitor.
+// ---------------------------------------------------------------------------
+
+/** Spec braucht eine Env-Var (z.B. API-Key) — sonst übersprungen. */
+export function runsOnlyWithEnv(envVar: string, what: string) {
+  test.skip(!process.env[envVar], `${envVar} nicht gesetzt — ${what} übersprungen`);
+}
+
+/** Spec läuft nur gegen das deployte Staging (z.B. weil echtes Route53 nötig ist). */
+export function runsOnlyAgainstStaging(reason: string) {
+  test.skip(!isStagingTarget(), reason);
+}

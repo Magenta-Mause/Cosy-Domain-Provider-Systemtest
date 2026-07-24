@@ -1,10 +1,9 @@
-import { test, expect } from '../fixtures';
+import { test, expect, runsOnlyAgainstStaging } from '../fixtures';
 import { BillingPage, StripeCheckoutPage, StripePortalPage } from '@pages/index';
 
 test.describe('Stripe-Abonnement-Flow', () => {
-  test.skip(
-    process.env.RUN_STRIPE_TESTS !== '1',
-    'Stripe-Tests laufen nur mit RUN_STRIPE_TESTS=1.',
+  runsOnlyAgainstStaging(
+    'Stripe-Checkout braucht die Sandbox-Konfiguration des Staging-Backends — läuft nicht lokal.',
   );
 
   // beforeEach kann beim Auto-Heal (Subscription kündigen) länger brauchen als die
@@ -44,43 +43,56 @@ test.describe('Stripe-Abonnement-Flow', () => {
     let cancelled = false;
 
     try {
-      await billing.navigate();
-      await expect(billing.currentPlanLabel).toBeVisible();
-      await expect(billing.freeBadge).toBeVisible();
-
-      await billing.openCheckout();
-      await checkout.completeSubscription({
-        email: appTestUser.email,
-        name: appTestUser.username,
+      await test.step('Given: der User steht auf dem Free-Plan', async () => {
+        await billing.navigate();
+        await expect(billing.currentPlanLabel).toBeVisible();
+        await expect(billing.freeBadge).toBeVisible();
       });
-      subscribed = true;
 
-      await authenticatedPage.waitForURL(/\/billing\?success=true/, { timeout: 90_000 });
-      await expect
-        .poll(
-          async () => {
-            await authenticatedPage.goto('/billing');
-            await expect(billing.currentPlanLabel).toBeVisible({ timeout: 15_000 });
-            return await billing.plusPlanDescription.isVisible().catch(() => false);
-          },
-          { timeout: 240_000, intervals: [3_000, 8_000] },
-        )
-        .toBe(true);
+      await test.step('When: er den Stripe-Checkout abschließt', async () => {
+        await billing.openCheckout();
+        await checkout.completeSubscription({
+          email: appTestUser.email,
+          name: appTestUser.username,
+        });
+        subscribed = true;
+        await authenticatedPage.waitForURL(/\/billing\?success=true/, { timeout: 90_000 });
+      });
 
-      await billing.navigate();
-      await billing.openPortal();
-      await portal.cancelSubscription();
-      cancelled = true;
-      await expect(portal.cancellationNotice).toBeVisible({ timeout: 15_000 });
-      await portal.dismissFeedbackSurvey();
+      await test.step('Then: zeigt die Billing-Seite den Cosy+-Plan', async () => {
+        // Stripe-Webhook → Backend braucht teils Minuten, deshalb Polling mit Reload.
+        await expect
+          .poll(
+            async () => {
+              await authenticatedPage.goto('/billing');
+              await expect(billing.currentPlanLabel).toBeVisible({ timeout: 15_000 });
+              return await billing.plusPlanDescription.isVisible().catch(() => false);
+            },
+            { timeout: 240_000, intervals: [3_000, 8_000] },
+          )
+          .toBe(true);
+      });
 
-      if (await portal.returnToAppLink.isVisible({ timeout: 5_000 }).catch(() => false)) {
-        await portal.returnToAppLink.click();
-      } else {
-        await authenticatedPage.goto('/billing');
-      }
-      await authenticatedPage.waitForURL(/\/billing/, { timeout: 30_000 });
+      await test.step('When: er im Customer Portal kündigt', async () => {
+        await billing.navigate();
+        await billing.openPortal();
+        await portal.cancelSubscription();
+        cancelled = true;
+      });
+
+      await test.step('Then: bestätigt das Portal die Kündigung und führt zurück zur App', async () => {
+        await expect(portal.cancellationNotice).toBeVisible({ timeout: 15_000 });
+        await portal.dismissFeedbackSurvey();
+
+        if (await portal.returnToAppLink.isVisible({ timeout: 5_000 }).catch(() => false)) {
+          await portal.returnToAppLink.click();
+        } else {
+          await authenticatedPage.goto('/billing');
+        }
+        await authenticatedPage.waitForURL(/\/billing/, { timeout: 30_000 });
+      });
     } finally {
+      // Sicherheitsnetz: nie mit aktivem Abo enden, sonst zahlt der nächste Lauf drauf.
       if (subscribed && !cancelled) {
         try {
           await billing.navigate();

@@ -58,7 +58,7 @@ In CI, set `STAGING_AUTH_USERNAME`, `STAGING_AUTH_PASSWORD`, and `MAIL_SERVICE_A
 
 The Staging credentials are only used for the Staging barrier. The app test user is created during Playwright global setup via `/api/v1/auth/register`, verified through the test mailbox, secured with MFA, and written to `.auth/test-user.json` for fixtures that require an authenticated app user. The authenticated browser state after password + MFA login is stored in `.auth/app-user-state.json`.
 
-By default, staging only sends the setup verification mail. Additional mail-heavy specs are skipped unless `RUN_MAIL_FLOW_TESTS=1` is set, or `npm run test:staging:mail` is used.
+`npm run test:staging` runs the full suite (including mail flows and the Stripe sandbox subscription, ~5–10 min). Use `npm run test:staging:core` for a fast check without extra mails/Stripe, or the scoped `test:staging:{mail,mfa-ui,stripe,admin,external}` scripts.
 At the end of a suite, registered test users are deleted through `globalTeardown`.
 
 To watch the global setup verification browser:
@@ -77,13 +77,23 @@ npm run test:staging:mfa-ui -- --headed --timeout=120000
 
 ```
 tests/
-├── fixtures/   # Custom test fixtures (extended test object)
-├── helpers/    # Shared helper functions and test data utilities
+├── fixtures/   # Custom test fixtures (extended test object) + skip guards
+├── helpers/    # Shared helpers: auth-api flows, mail service, captcha bypass, constants
 ├── pages/      # Page Object Models grouped by feature area
 └── specs/      # Test specs (one file per feature area)
 ```
 
 Page objects are grouped under `tests/pages/{admin,auth,billing,domains,public}` and re-exported through `@pages/index`.
+
+**Architecture docs:** [docs/test-architecture.md](docs/test-architecture.md) — test-user lifecycle,
+`.auth/` state files, env-flag matrix, captcha bypass, and the Given/When/Then spec conventions.
+
+Key conventions (details in `CLAUDE.md` / `docs/test-architecture.md`):
+
+- Auth/user API flows (register, verify, MFA, login) live in `tests/helpers/auth-api.ts` — never inline in specs.
+- `BASE_URL` is resolved only via `resolveBaseURL()` from `tests/helpers/constants.ts`; requests use relative paths.
+- Flow tests are structured with `test.step('Given: …' / 'When: …' / 'Then: …')`.
+- Environment skips use the guards from `@fixtures/index` (`runsOnlyWithEnv`, `runsOnlyAgainstStaging`).
 
 ---
 
