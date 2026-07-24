@@ -27,6 +27,11 @@ test.describe('Domain-CRUD', () => {
       await dashboard.createNewBtn.click();
       await expect(page).toHaveURL(/\/domain\/new$/);
 
+      // Naming-Mode explizit auf "Zufällige Subdomain" setzen: für Cosy+-User
+      // defaultet das Formular auf "Eigene Subdomain" und der Submit bleibt ohne
+      // Label disabled (passiert im Gesamtlauf, wenn der Stripe-Spec den
+      // Setup-User vorher auf Plus hebt).
+      await detail.randomNameCard.click();
       await detail.targetIpInput.fill(INITIAL_IP);
       await detail.submitBtn.click();
 

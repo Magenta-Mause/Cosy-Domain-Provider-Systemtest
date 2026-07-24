@@ -11,6 +11,12 @@ export class DomainDetailPage {
     return this.page.getByTestId('domain-detail-target-ip-input');
   }
 
+  // Naming-Mode-Karten im Create-Formular (PlanCard hat keine testid; Buttons
+  // mit i18n-Label — Regex deckt EN + DE ab).
+  get randomNameCard() {
+    return this.page.getByRole('button', { name: /random name|zufällige subdomain/i });
+  }
+
   get submitBtn() {
     return this.page.getByTestId('domain-detail-submit-btn');
   }
