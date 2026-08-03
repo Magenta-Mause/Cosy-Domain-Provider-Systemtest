@@ -30,6 +30,13 @@ spec:
           containers:
             - name: systemtest
               image: ghcr.io/magenta-mause/cosy-domain-provider-systemtest:latest
+              # Bewusste Ausnahme von der Pin-Regel des Ziel-Clusters
+              # (silo/CLAUDE.md: "Versionen gepinnt, nichts auf latest"): dieser
+              # Job SOLL den jeweils neuesten Testcode gegen Staging fahren. Ein
+              # gepinnter sha-Tag wuerde die Nightly einfrieren, bis jemand ihn
+              # nachzieht — und eine stillstehende Testsuite meldet keine Fehler
+              # mehr, ohne dass es auffaellt. Reproduzierbarkeit ist hier kein
+              # Ziel: der Job baut nichts, er misst nur.
               imagePullPolicy: Always
               env:
                 - name: BASE_URL
