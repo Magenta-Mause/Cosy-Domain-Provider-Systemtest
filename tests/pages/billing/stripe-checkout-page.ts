@@ -38,13 +38,18 @@ export class StripeCheckoutPage {
     return this.page.getByRole('checkbox', { name: /ai agent/i });
   }
 
-  get cardPaymentOption() {
-    return this.page.getByRole('radio', { name: /^karte$|^card$/i });
+  // Seit Stripe neben Karte weitere Methoden (z. B. Klarna) anbietet, ist keine
+  // vorausgewählt. Die Auswahl ist eine Akkordeon-Zeile ohne Radio-Rolle; ein
+  // transparenter Button liegt über der ganzen Zeile und fängt die Klicks ab.
+  get cardAccordionButton() {
+    return this.page.getByTestId('card-accordion-item-button');
   }
 
   async completeSubscription(opts: { email: string; name?: string }) {
-    if (!(await this.cardPaymentOption.isChecked().catch(() => false))) {
-      await this.cardPaymentOption.check({ force: true }).catch(() => undefined);
+    if ((await this.cardAccordionButton.count()) > 0) {
+      // Der Button hat keine brauchbare Bounding-Box ("outside of the viewport"),
+      // deshalb Klick-Event direkt statt Mausklick.
+      await this.cardAccordionButton.dispatchEvent('click');
     }
 
     if (await this.emailInput.isVisible({ timeout: 1_000 }).catch(() => false)) {

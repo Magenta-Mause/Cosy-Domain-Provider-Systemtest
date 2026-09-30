@@ -2,6 +2,11 @@ import { request } from '@playwright/test';
 
 const MAIL_SERVICE_URL = 'https://mail-service.jannekeipert.de';
 
+// `after` stammt von der lokalen Uhr, `sentAt` vom Mail-Service. Geht die lokale Uhr
+// vor, fällt eine sofort verschickte Mail sonst durch den Filter. Empfänger sind pro
+// Lauf eindeutig, die Toleranz lässt also keine fremden Mails durch.
+const CLOCK_SKEW_TOLERANCE_MS = 30_000;
+
 export interface Mail {
   uuid: string;
   recipient: string;
@@ -58,7 +63,7 @@ export class MailService {
         (m) =>
           m.recipient === recipient &&
           m.subject.includes(subjectContains) &&
-          new Date(m.sentAt) > after,
+          new Date(m.sentAt).getTime() > after.getTime() - CLOCK_SKEW_TOLERANCE_MS,
       );
       if (found) {
         if (!found.success) {
