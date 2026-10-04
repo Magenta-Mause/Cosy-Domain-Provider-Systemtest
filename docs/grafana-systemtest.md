@@ -18,6 +18,7 @@ Prometheus scraped den Pushgateway, hier kommen die Panels + Alerts.
 | `cosy_systemtest_suite_tests_skipped` | `suite` | übersprungene Tests |
 | `cosy_systemtest_suite_tests_flaky` | `suite` | flaky Tests |
 | `cosy_systemtest_suite_duration_seconds` | `suite` | Laufzeit der Suite |
+| `cosy_systemtest_test_failed` | `suite`, `spec`, `test` | 1 je fehlgeschlagenem Test (grün = keine Serie) |
 | `cosy_systemtest_run_success` | – | 1 = alle Suites grün |
 | `cosy_systemtest_last_run_timestamp_seconds` | – | Unix-Zeit des letzten Laufs |
 
@@ -55,12 +56,31 @@ cosy_systemtest_suite_duration_seconds
 ```
 Unit: *seconds (s)*. Legend: `{{suite}}`.
 
+### Fehlgeschlagene Tests (Tabelle)
+
+```promql
+cosy_systemtest_test_failed
+```
+Visualization: *Table*, Format *Table*, Instant. Zeigt `suite`, `spec`, `test` pro
+rotem Test; leer, wenn alles grün. (Serien gibt es nur für fehlgeschlagene Tests.)
+
 ## Alerts (Grafana Unified Alerting)
 
 **A) Eine Suite ist rot**
 - Query A: `cosy_systemtest_suite_success`
 - Condition: `WHEN last() OF A IS BELOW 1` (→ feuert für jede Suite mit Wert 0)
 - For: `5m` · Labels: `severity=critical` · Summary: `Systemtest-Suite {{ $labels.suite }} ist rot`
+
+Description/Annotation (Runbook statt nur „Logs im Cluster"):
+
+```
+Suite {{ $labels.suite }} ist beim letzten Lauf rot.
+Welcher Test: cosy_systemtest_test_failed{suite="{{ $labels.suite }}"}
+Ursache: Job-Log, Block "=== Fehlgeschlagene Tests ===" (Fehler + Seiten-Snapshot).
+Log: Grafana grafana.int.pybay.de → Loki {namespace="cosy-systemtest"} (14 d)
+     oder ssh juliette 'sudo k3s kubectl -n cosy-systemtest logs job/<job>' (24 h)
+```
+`runbook_url`: https://github.com/Magenta-Mause/Cosy-Domain-Provider-Systemtest/blob/main/deploy/README.md#ein-lauf-ist-rot--debugging
 
 **B) Systemtests sind nicht gelaufen (stale / CronJob tot)**
 - Query A: `time() - cosy_systemtest_last_run_timestamp_seconds`

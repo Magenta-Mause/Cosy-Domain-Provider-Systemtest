@@ -28,6 +28,47 @@ GitOps-Repo des Clusters, nicht hier. Für Simons Cluster z.B. in `homelab-gitop
 eine Argo-`Application` (Multi-Source: dieser `deploy/`-Ordner + der lokale
 SealedSecret) und eine kubeseal-verschlüsselte `cosy-systemtest-secrets`.
 
+## Ein Lauf ist rot — Debugging
+
+Der Alert `CosyDomainProviderSystemtestSuiteFailing` nennt die Suite; die Metrik
+`cosy_systemtest_test_failed{suite,spec,test}` (Dashboard / Explore) nennt den
+konkreten Test. Die Ursache steht im Job-Log: am Ende druckt `scripts/monitor.ts`
+einen Block **`=== Fehlgeschlagene Tests ===`** mit Fehlermeldung und dem
+Aria-Snapshot der Seite beim Fehlschlag (z.B. „That code didn't match"). Screenshots,
+Traces und `error-context.md` liegen nur im Pod und sind nach dem Lauf weg — der
+Snapshot im Log ersetzt sie in den meisten Fällen.
+
+**Log holen** (Simons Cluster, Host `juliette`):
+
+```bash
+# Loki (14 Tage Retention, auch für längst gelöschte Pods):
+#   Grafana https://grafana.int.pybay.de → Explore → Loki
+#   {namespace="cosy-systemtest"} |= ""        (Zeitraum: letzte Nacht ~02:00 UTC)
+
+# Direkt, solange der Job noch existiert (ttlSecondsAfterFinished = 24 h):
+ssh juliette 'sudo k3s kubectl -n cosy-systemtest get jobs'
+ssh juliette 'sudo k3s kubectl -n cosy-systemtest logs job/<job-name>' \
+  | sed -n '/=== Fehlgeschlagene Tests ===/,$p'
+```
+
+**Lokal reproduzieren** (Suite-Script siehe `SUITES` in `scripts/monitor.ts`):
+
+```bash
+npm run test:staging:<suite> -- -g "<Testtitel>" --retries=0
+```
+
+Lokal bleiben Trace und `test-results/**/error-context.md` erhalten
+(`npx playwright show-trace …`).
+
+**Nach dem Fix** — nicht bis 02:00 warten, damit der Alert auflöst: Image-Build
+(`build-image.yml`) abwarten, dann einmalig nachlaufen lassen:
+
+```bash
+ssh juliette 'sudo k3s kubectl -n cosy-systemtest create job --from=cronjob/cosy-systemtest manual-rerun-$(date +%Y%m%d-%H%M)'
+```
+
+Der Lauf pusht neue Metriken, die Alert-Regel löst beim nächsten Evaluieren auf.
+
 ## In ein Cluster bringen
 
 1. **Secret bereitstellen** im Namespace `cosy-systemtest` mit den Keys aus
