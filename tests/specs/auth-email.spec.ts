@@ -3,6 +3,7 @@ import { VerifyPage } from '@pages/index';
 import {
   MAIL_FLOW_TEST_TIMEOUT_MS,
   registerTestUserViaApi,
+  waitForVerificationMail,
   waitForVerificationToken,
 } from '@helpers/index';
 
@@ -36,18 +37,22 @@ test.describe('E-Mail-Verifizierungs-Flow', () => {
   }) => {
     const verify = new VerifyPage(page);
 
-    const user = await test.step('Given: ein registrierter User mit 6-stelligem Code in der Verify-Mail', async () => {
+    const { user, firstMailUuid } = await test.step('Given: ein registrierter User mit 6-stelligem Code in der Verify-Mail', async () => {
       const u = await registerTestUserViaApi(page, { source: 'auth-email.spec.ts' });
-      const token = await waitForVerificationToken(u.email, u.registeredAt);
-      expect(token).toMatch(/^[A-Z0-9]{6}$/);
-      return u;
+      const first = await waitForVerificationMail(u.email, u.registeredAt);
+      expect(first.token).toMatch(/^[A-Z0-9]{6}$/);
+      return { user: u, firstMailUuid: first.uuid };
     });
 
     const code = await test.step('When: er auf /verify eine neue Verifizierungsmail anfordert', async () => {
       await page.goto('/verify');
       const resendRequestedAt = new Date();
       await verify.requestVerificationEmail();
-      return waitForVerificationToken(user.email, resendRequestedAt);
+      // Der Resend invalidiert den ersten Code — dessen Mail explizit ausschließen.
+      const resent = await waitForVerificationMail(user.email, resendRequestedAt, {
+        excludeUuids: [firstMailUuid],
+      });
+      return resent.token;
     });
 
     await test.step('Then: verifiziert der manuell eingegebene Code den Account', async () => {

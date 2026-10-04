@@ -78,14 +78,29 @@ export async function waitForVerificationToken(
   after: Date,
   timeoutMs = MAIL_WAIT_TIMEOUT_MS,
 ): Promise<string> {
+  return (await waitForVerificationMail(email, after, { timeoutMs })).token;
+}
+
+/**
+ * Wie waitForVerificationToken, liefert aber zusätzlich die Mail-UUID — nötig, wenn
+ * danach auf eine Folge-Mail gewartet wird (Resend): die alte UUID per `excludeUuids`
+ * ausschließen, sonst greift die Clock-Skew-Toleranz die erste Mail mit dem dann
+ * ungültigen Code.
+ */
+export async function waitForVerificationMail(
+  email: string,
+  after: Date,
+  opts: { timeoutMs?: number; excludeUuids?: string[] } = {},
+): Promise<{ token: string; uuid: string }> {
   const mail = new MailService();
   const verifyMail = await mail.waitForMail({
     recipient: email,
     subjectContains: VERIFY_MAIL_SUBJECT,
     after,
-    timeoutMs,
+    excludeUuids: opts.excludeUuids,
+    timeoutMs: opts.timeoutMs ?? MAIL_WAIT_TIMEOUT_MS,
   });
-  return mail.extractVerifyToken(verifyMail);
+  return { token: mail.extractVerifyToken(verifyMail), uuid: verifyMail.uuid };
 }
 
 /**

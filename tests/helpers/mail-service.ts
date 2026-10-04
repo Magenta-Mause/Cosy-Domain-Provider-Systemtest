@@ -4,7 +4,9 @@ const MAIL_SERVICE_URL = 'https://mail-service.jannekeipert.de';
 
 // `after` stammt von der lokalen Uhr, `sentAt` vom Mail-Service. Geht die lokale Uhr
 // vor, fällt eine sofort verschickte Mail sonst durch den Filter. Empfänger sind pro
-// Lauf eindeutig, die Toleranz lässt also keine fremden Mails durch.
+// Lauf eindeutig, die Toleranz lässt also keine fremden Mails durch — wohl aber eine
+// frühere Mail an DENSELBEN Empfänger (z.B. die erste Verify-Mail vor einem Resend).
+// Wer auf eine Folge-Mail wartet, muss die alte daher per `excludeUuids` ausschließen.
 const CLOCK_SKEW_TOLERANCE_MS = 30_000;
 
 export interface Mail {
@@ -51,10 +53,18 @@ export class MailService {
     recipient: string;
     subjectContains: string;
     after: Date;
+    excludeUuids?: string[];
     timeoutMs?: number;
     pollIntervalMs?: number;
   }): Promise<Mail> {
-    const { recipient, subjectContains, after, timeoutMs = 90_000, pollIntervalMs = 2_000 } = opts;
+    const {
+      recipient,
+      subjectContains,
+      after,
+      excludeUuids = [],
+      timeoutMs = 90_000,
+      pollIntervalMs = 2_000,
+    } = opts;
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
@@ -63,6 +73,7 @@ export class MailService {
         (m) =>
           m.recipient === recipient &&
           m.subject.includes(subjectContains) &&
+          !excludeUuids.includes(m.uuid) &&
           new Date(m.sentAt).getTime() > after.getTime() - CLOCK_SKEW_TOLERANCE_MS,
       );
       if (found) {

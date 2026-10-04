@@ -14,6 +14,7 @@ export {
   setupMfaViaApi,
   triggerVerificationMail,
   verifyUserViaMailLink,
+  waitForVerificationMail,
   waitForVerificationToken,
 } from './auth-api';
 export type { ApiTestUser, TestUserCredentials } from './auth-api';
