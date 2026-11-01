@@ -1,5 +1,5 @@
 # Playwright-Image mit vorinstallierten Browsern, passend zur @playwright/test-Version.
-FROM mcr.microsoft.com/playwright:v1.59.1-jammy
+FROM mcr.microsoft.com/playwright:v1.64.1-jammy
 
 WORKDIR /app
 
